@@ -12,7 +12,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "njav",
         "name": "NJAV",
-        "version": "1.0.6",
+        "version": "1.0.7",
         "baseUrl": "https://www.njav.com",
         "referrer": "https://www.njav.com/",
         "iconUrl": "https://www.njav.com/favicon.ico",
@@ -576,6 +576,29 @@ function parseDetailResponse(htmlContent, pageUrl) {
 }
 
 function parseEmbedResponse(htmlContent, pageUrl) {
+    // upload18 player page (the /jm/ hop now redirects there): the signed
+    // stream lives in window.PLAYER_CONFIG as "m3u8":"https:\/\/..." with
+    // escaped slashes and \u0026 separators — unescape before use.
+    var pcMatch = htmlContent.match(/"m3u8"\s*:\s*"([^"]+)"/);
+    if (pcMatch) {
+        var pcUrl = pcMatch[1].replace(/\\\//g, '/').replace(/\\u0026/g, '&').replace(/&amp;/g, '&');
+        if (pcUrl.indexOf("?") !== -1) {
+            pcUrl += "&ext=.m3u8";
+        } else {
+            pcUrl += "?ext=.m3u8";
+        }
+        return JSON.stringify({
+            url: pcUrl,
+            isEmbed: false,
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://upload18.org/",
+                "Origin": "https://upload18.org"
+            },
+            subtitles: []
+        });
+    }
+
     if (pageUrl.indexOf("/vv/") !== -1) {
         // Step 2: From /vv/ page, extract the /jm/ link
         var jmMatch = htmlContent.match(/\/jm\/[a-zA-Z0-9+/=]+/);

@@ -6,7 +6,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "phimhdcs",
         "name": "PhimHDCS",
-        "version": "1.1.7",
+        "version": "1.1.8",
         "baseUrl": "https://phimhdcss.com",
         "iconUrl": "https://phimhdcss.com/favicon.ico",
         "isEnabled": true,
@@ -407,7 +407,10 @@ function parseMovieDetail(htmlContent) {
             for (var mi = 0; mi < mergedEps.length; mi++) {
                 var ep = mergedEps[mi];
                 episodes.push({
-                    id: ep.url + "|data:server:tiktok",
+                    // JTV contract: episode.id IS the fetch target — it must
+                    // be the bare watch URL. The old "|data:server:..." suffix
+                    // made every episode fetch return 404.
+                    id: ep.url,
                     name: ep.name,
                     slug: ep.url,
                     ids: [
@@ -434,7 +437,7 @@ function parseMovieDetail(htmlContent) {
             servers.push({
                 name: "Server #1",
                 episodes: [{
-                    id: extraUrl + "|data:server:tiktok",
+                    id: extraUrl,
                     name: "Full",
                     slug: extraUrl,
                     ids: [
