@@ -1,0 +1,131 @@
+{
+    "version": 1,
+    "plugins": [
+        {
+            "id": "ophim",
+            "name": "OPhim",
+            "version": "1.0.4",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/ophim_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/ophim.ico"
+        },
+        {
+            "id": "kkphim",
+            "name": "KKPhim",
+            "version": "1.0.2",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/kkphim_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/kkphim.png"
+        },
+        {
+            "id": "nguonc",
+            "name": "Phim NguonC",
+            "version": "1.1.5",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/nguonc_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/nguonc.png"
+        },
+        {
+            "id": "clbpx",
+            "name": "CLB Phim Xưa",
+            "version": "1.0.7",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/clbpx_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/clbpx.ico"
+        },
+        {
+            "id": "sieutamphim",
+            "name": "Sưu Tầm Phim",
+            "version": "1.1.0",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/sieutamphim_plugin.js",
+            "iconUrl": "https://www.sieutamphim.pro/posts/2024/06/cropped-logosieutamphim-192x192.png"
+        },
+        {
+            "id": "phimhdcs",
+            "name": "PhimHDCSS",
+            "version": "1.1.7",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/phimhdcs_plugin.js",
+            "iconUrl": "https://phimhdcss.com/favicon.ico"
+        },
+        {
+            "id": "missav",
+            "name": "MissAV",
+            "version": "1.1.3",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/missav_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/missav.ico"
+        },
+        {
+            "id": "123av",
+            "name": "123AV",
+            "version": "1.0.4",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/123av_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/123av.ico"
+        },
+        {
+            "id": "avdbapi",
+            "name": "AVDB JAV",
+            "version": "1.0.4",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/avdbapi_plugin.js",
+            "iconUrl": "https://avdbapi.com/favicon.ico"
+        },
+        {
+            "id": "sextop1",
+            "name": "Sextop1",
+            "version": "1.1.8",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/sextop1_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/sextop1.webp"
+        },
+        {
+            "id": "sextop2",
+            "name": "Sextop2",
+            "version": "1.1.6",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/sextop2_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/sextop2.webp"
+        },
+        {
+            "id": "topxx",
+            "name": "TopXX",
+            "version": "1.0.1",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/topxx_plugin.js",
+            "iconUrl": "https://topxx.vip/favicon.ico"
+        },
+        {
+            "id": "javhd",
+            "name": "JavHD",
+            "version": "1.0.5",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/javhd_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/javhd.ico"
+        },
+        {
+            "id": "vlxx",
+            "name": "VLXX",
+            "version": "1.0.5",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/vlxx_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/vlxx.ico"
+        },
+        {
+            "id": "njav",
+            "name": "NJAV",
+            "version": "1.0.6",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/njav_plugin.js",
+            "iconUrl": "https://www.njav.com/favicon.ico"
+        },
+        {
+            "id": "otruyen",
+            "name": "OTruyen",
+            "version": "1.0.2",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/otruyen_plugin.js",
+            "iconUrl": "https://docs.otruyenapi.com/favicon-32x32.png"
+        },
+        {
+            "id": "sayhentai",
+            "name": "SayHentai",
+            "version": "1.0.4",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/sayhentai_plugin.js",
+            "iconUrl": "https://sayhentai.sh/favicon-32x32.png"
+        },
+        {
+            "id": "misskon",
+            "name": "MissKon",
+            "version": "1.0.1",
+            "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/misskon_plugin.js",
+            "iconUrl": "https://misskon.com/favicon.ico"
+        }
+    ]
+}
