@@ -125,9 +125,9 @@
     {
       "id": "sayhentai",
       "name": "SayHentai",
-      "version": "1.0.5",
+      "version": "2.0.0",
       "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/sayhentai_plugin.js",
-      "iconUrl": "https://sayhentai.sh/favicon-32x32.png",
+      "iconUrl": "https://sayhentai.wiki/favicon.ico",
       "adult": true
     },
     {
