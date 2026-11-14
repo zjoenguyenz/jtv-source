@@ -31,11 +31,11 @@
     {
       "id": "sextop1",
       "name": "Sextop1",
-      "version": "1.1.8",
+      "version": "2.0.0",
       "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/sextop1_plugin.js",
       "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/sextop1.webp",
       "adult": true,
-      "baseUrl": "https://vnsextop1.com"
+      "baseUrl": "https://sextop1.house"
     },
     {
       "id": "sextop2",
@@ -67,11 +67,11 @@
     {
       "id": "vlxx",
       "name": "VLXX",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/vlxx_plugin.js",
       "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/vlxx.ico",
       "adult": true,
-      "baseUrl": "https://vlxx.moi"
+      "baseUrl": "https://vlxx.net"
     },
     {
       "id": "njav",
