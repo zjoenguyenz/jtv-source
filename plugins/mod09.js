@@ -1,341 +1,224 @@
-// =============================================================================
-// SayHentai plugin v2.0.0 — rewritten 2026-11-13 for the site's new home.
-// The operator abandoned the old Madara site at sayhentai.cx (now stuck
-// behind a hard Cloudflare wall) and moved to sayhentai.wiki, a different
-// platform (Halim-style theme): list /danh-sach, detail /truyen/<slug>.html,
-// reader /doc-truyen/<slug>/chapter-<n>.html, images on image.shtcdn.top.
-// No Cloudflare challenge on .wiki (verified from VM + on-device Safari).
-// =============================================================================
-
-function getManifest() {
-    return JSON.stringify({
-        "id": "sayhentai",
-        "name": "SayHentai",
-        "version": "2.0.0",
-        "baseUrl": "https://sayhentai.wiki",
-        "iconUrl": "https://sayhentai.wiki/favicon.ico",
-        "isEnabled": true,
-        "isAdult": true,
-        "type": "MANGA",
-        "layoutType": "VERTICAL"
-    });
-}
-
-function getHomeSections() {
-    return JSON.stringify([
-        { slug: '', title: 'Truyện Mới Cập Nhật', type: 'Grid', path: '' }
-    ]);
-}
-
-function getPrimaryCategories() {
-    return JSON.stringify([
-        { name: 'Mới Nhất', slug: '' },
-        { name: 'Manhwa', slug: 'the-loai/manhwa' },
-        { name: 'Drama', slug: 'the-loai/drama' },
-        { name: 'Romance', slug: 'the-loai/romance' },
-        { name: 'Action', slug: 'the-loai/action' },
-        { name: 'Adult', slug: 'the-loai/adult' }
-    ]);
-}
-
-function getFilterConfig() {
-    return JSON.stringify({
-        sort: [
-            { name: 'Mới cập nhật', value: 'latest' }
-        ],
-        category: [
-            { name: "Manhwa", value: "manhwa" },
-            { name: "Drama", value: "drama" },
-            { name: "Romance", value: "romance" },
-            { name: "Action", value: "action" }
-        ]
-    });
-}
-
-// =============================================================================
-// URL GENERATION
-// =============================================================================
-
-var BASE = "https://sayhentai.wiki";
-
-function getUrlList(slug, filtersJson) {
-    var filters = JSON.parse(filtersJson || "{}");
-    var page = filters.page || 1;
-
-    if (filters.category) {
-        return BASE + "/the-loai/" + filters.category + "?page=" + page;
-    }
-    if (slug && slug.indexOf('the-loai/') === 0) {
-        return BASE + "/" + slug + "?page=" + page;
-    }
-    return BASE + "/danh-sach?page=" + page;
-}
-
-function getUrlSearch(keyword, filtersJson) {
-    var filters = JSON.parse(filtersJson || "{}");
-    var page = filters.page || 1;
-    var url = BASE + "/search?q=" + encodeURIComponent(keyword);
-    if (page > 1) url += "&page=" + page;
-    return url;
-}
-
-function getUrlDetail(slug) {
-    if (!slug) return "";
-    if (slug.indexOf("http") === 0) return slug;
-    return BASE + "/truyen/" + slug + ".html";
-}
-
-function getUrlCategories() { return BASE + "/"; }
-function getUrlCountries() { return ""; }
-function getUrlYears() { return ""; }
-
-// =============================================================================
-// UTILS
-// =============================================================================
-
-var PluginUtils = {
-    cleanText: function (text) {
-        if (!text) return "";
-        return text.replace(/<[^>]*>/g, "")
-            .replace(/&amp;/g, "&")
-            .replace(/&quot;/g, '"')
-            .replace(/&#039;/g, "'")
-            .replace(/&#39;/g, "'")
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/\s+/g, " ")
-            .trim();
-    }
-};
-
-// =============================================================================
-// PARSERS
-// =============================================================================
-
-function parseListResponse(html) {
-    var items = [];
-    var foundSlugs = {};
-
-    // Cards are <article class="thumb ..."> blocks containing a halim-thumb
-    // anchor (href + title), a lazy cover (data-src) and an episode badge.
-    var chunks = html.split(/<article[^>]*class="[^"]*thumb[^"]*"[^>]*>/i);
-    for (var i = 1; i < chunks.length; i++) {
-        var chunk = chunks[i].substring(0, 4000);
-
-        var linkMatch = chunk.match(/<a[^>]*class="halim-thumb"[^>]*href="https:\/\/sayhentai\.wiki\/truyen\/([a-z0-9-]+?)(?:\.html)?"[^>]*title="([^"]*)"/i) ||
-            chunk.match(/<a[^>]*href="https:\/\/sayhentai\.wiki\/truyen\/([a-z0-9-]+?)(?:\.html)?"[^>]*>/i);
-        if (!linkMatch) continue;
-
-        var slug = linkMatch[1];
-        var title = linkMatch[2] ? PluginUtils.cleanText(linkMatch[2]) : "";
-        if (!title) {
-            var h2 = chunk.match(/<h2[^>]*class="[^"]*entry-title[^"]*"[^>]*>([\s\S]*?)<\/h2>/i);
-            if (h2) title = PluginUtils.cleanText(h2[1]);
-        }
-
-        var thumbMatch = chunk.match(/data-src="(https:\/\/image\.shtcdn\.top\/[^"]+)"/i) ||
-            chunk.match(/<img[^>]+src="(https:\/\/image\.shtcdn\.top\/[^"]+)"/i);
-        var thumb = thumbMatch ? thumbMatch[1] : "";
-
-        var epMatch = chunk.match(/<span[^>]*class="episode"[^>]*>([\s\S]*?)<\/span>/i);
-        var episode = epMatch ? PluginUtils.cleanText(epMatch[1]) : "";
-
-        if (slug && !foundSlugs[slug]) {
-            items.push({
-                id: slug,
-                title: title || slug,
-                posterUrl: thumb,
-                backdropUrl: thumb,
-                description: "",
-                episode_current: episode,
-                quality: "HD",
-                lang: "Vietsub"
-            });
-            foundSlugs[slug] = true;
-        }
-    }
-
-    // Pagination: <li class="active"><a href="#">2</a></li>; total from page= links.
-    var currentPage = 1;
-    var curMatch = html.match(/<li[^>]*class="active"[^>]*>\s*<a[^>]*>(\d+)<\/a>/i);
-    if (curMatch) currentPage = parseInt(curMatch[1]);
-
-    var totalPages = currentPage;
-    var pageRegex = /[?&]page=(\d+)/g;
-    var pMatch;
-    while ((pMatch = pageRegex.exec(html)) !== null) {
-        var p = parseInt(pMatch[1]);
-        if (p > totalPages) totalPages = p;
-    }
-
-    return JSON.stringify({
-        items: items,
-        pagination: {
-            currentPage: currentPage,
-            totalPages: totalPages || 1,
-            totalItems: items.length * (totalPages || 1),
-            itemsPerPage: items.length
-        }
-    });
-}
-
-function parseSearchResponse(html) {
-    return parseListResponse(html);
-}
-
-function parseMovieDetail(html) {
-    try {
-        // Title
-        var title = "";
-        var ogTitle = html.match(/<meta property="og:title" content="([^"]+)"/i);
-        if (ogTitle) title = PluginUtils.cleanText(ogTitle[1]).replace(/\s*-\s*SayHentai\s*$/i, "").replace(/^Truyện\s+/i, "");
-        if (!title) {
-            var h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-            if (h1) title = PluginUtils.cleanText(h1[1]);
-        }
-
-        // Poster
-        var poster = "";
-        var ogImage = html.match(/<meta property="og:image" content="([^"]+)"/i);
-        if (ogImage) poster = ogImage[1];
-
-        // Status: "Trạng Thái: </span><span...>Đã hoàn thành</span>"
-        var status = "Đang tiến hành";
-        var stIdx = html.indexOf("Trạng Thái:");
-        if (stIdx >= 0) {
-            var stText = PluginUtils.cleanText(html.substring(stIdx, stIdx + 260).replace(/^Trạng Thái:\s*/i, ""));
-            if (stText) status = stText.split("Lượt Xem")[0].trim() || status;
-        }
-
-        // Description: text block after the "Nội dung" heading
-        var description = "";
-        var descIdx = html.indexOf("Nội dung");
-        if (descIdx >= 0) {
-            var raw = html.substring(descIdx, descIdx + 2600);
-            var text = PluginUtils.cleanText(raw).replace(/^Nội dung( Truyện)?\s*/i, "");
-            description = text.substring(0, 700);
-        }
-
-        // Chapters: <li class="chapter"><a href=".../doc-truyen/<slug>/<chap>.html" title="Chapter N">
-        var chapters = [];
-        var seenChap = {};
-        var chapRegex = /<li[^>]*class="chapter"[^>]*>\s*<a[^>]+href="(https:\/\/sayhentai\.wiki\/doc-truyen\/[^"]+)"[^>]*>/gi;
-        var cMatch;
-        while ((cMatch = chapRegex.exec(html)) !== null) {
-            if (!seenChap[cMatch[1]]) {
-                seenChap[cMatch[1]] = true;
-                chapters.push({ id: cMatch[1], url: cMatch[1] });
-            }
-        }
-        // Fallback (e.g. oneshot pages without li.chapter): any reader links.
-        if (chapters.length === 0) {
-            var anyRegex = /<a[^>]+href="(https:\/\/sayhentai\.wiki\/doc-truyen\/[^"]+)"[^>]*>/gi;
-            var aMatch;
-            while ((aMatch = anyRegex.exec(html)) !== null) {
-                if (!seenChap[aMatch[1]]) {
-                    seenChap[aMatch[1]] = true;
-                    chapters.push({ id: aMatch[1], url: aMatch[1] });
-                }
-            }
-        }
-        // Name + sort ascending by chapter number parsed from the URL tail.
-        for (var k = 0; k < chapters.length; k++) {
-            var tail = chapters[k].url.substring(chapters[k].url.lastIndexOf('/') + 1).replace(/\.html$/i, "");
-            var numMatch = tail.match(/chapter-([\d.]+)/i);
-            if (numMatch) {
-                chapters[k].num = parseFloat(numMatch[1]);
-                chapters[k].name = "Chapter " + numMatch[1];
-                // Variants like chapter-8-v2-chinh-thuc are distinct releases.
-                var rest = tail.substring(tail.toLowerCase().indexOf("chapter-" + numMatch[1]) + ("chapter-" + numMatch[1]).length).replace(/^-+/, "");
-                if (rest) chapters[k].name += " (" + rest.split("-")[0] + ")";
-            } else {
-                chapters[k].num = 0;
-                chapters[k].name = (tail.toLowerCase() === "oneshot") ? "Oneshot" : tail;
-            }
-            chapters[k].slug = tail;
-            delete chapters[k].url;
-        }
-        chapters.sort(function (a, b) { return a.num - b.num; });
-        for (var j = 0; j < chapters.length; j++) delete chapters[j].num;
-
-        var servers = [{
-            name: "Server 1",
-            episodes: chapters
-        }];
-
-        // Categories: the manga's own genres are rel="category tag" anchors
-        // (the plain /the-loai/ link set elsewhere is the site-wide menu).
-        var categories = [];
-        var seenCat = {};
-        var catRegex = /<a[^>]+title="([^"]+)"[^>]*rel="category tag"[^>]*href="https:\/\/sayhentai\.wiki\/the-loai\/([a-z0-9-]+)"/gi;
-        var cm;
-        while ((cm = catRegex.exec(html)) !== null) {
-            if (/^\d+$/.test(cm[2])) continue;
-            var cname = PluginUtils.cleanText(cm[1]);
-            if (cname && !seenCat[cname]) {
-                seenCat[cname] = true;
-                categories.push(cname);
-            }
-        }
-
-        return JSON.stringify({
-            id: "",
-            title: title,
-            posterUrl: poster,
-            backdropUrl: poster,
-            description: description,
-            servers: servers,
-            category: categories.join(", "),
-            status: status,
-            quality: "HD",
-            lang: "Vietsub"
-        });
-
-    } catch (e) {
-        return "null";
-    }
-}
-
-function parseDetailResponse(html) {
-    try {
-        var images = [];
-        // Reader pages are <img class='simg' src='https://image.shtcdn.top/manga-images/...'>
-        var tagRegex = /<img[^>]*class=['"]simg['"][^>]*>/gi;
-        var tag;
-        while ((tag = tagRegex.exec(html)) !== null) {
-            var srcMatch = tag[0].match(/src=['"]([^'"]+)['"]/i);
-            if (srcMatch && images.indexOf(srcMatch[1]) === -1) {
-                images.push(srcMatch[1].replace(/&amp;/g, "&"));
-            }
-        }
-
-        return JSON.stringify({
-            images: images,
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Referer": "https://sayhentai.wiki/"
-            }
-        });
-    } catch (e) {
-        return "{}";
-    }
-}
-
-function parseCategoriesResponse(html) {
-    var categories = [];
-    var seen = {};
-    var catRegex = /<a[^>]+href="https:\/\/sayhentai\.wiki\/the-loai\/([a-z0-9-]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-    var m;
-    while ((m = catRegex.exec(html)) !== null) {
-        if (/^\d+$/.test(m[1])) continue;
-        var name = PluginUtils.cleanText(m[2]).replace(/^-\s*/, "");
-        if (name && !seen[m[1]]) {
-            seen[m[1]] = true;
-            categories.push({ name: name, slug: "the-loai/" + m[1] });
-        }
-    }
-    return JSON.stringify(categories);
-}
-
-function parseCountriesResponse(html) { return "[]"; }
-function parseYearsResponse(html) { return "[]"; }
+Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT0KLy8gU2F5SGVudGFpIHBsdWdpbiB2Mi4wLjAg4oCUIHJl
+d3JpdHRlbiAyMDI2LTExLTEzIGZvciB0aGUgc2l0ZSdzIG5ldyBob21lLgovLyBUaGUgb3BlcmF0
+b3IgYWJhbmRvbmVkIHRoZSBvbGQgTWFkYXJhIHNpdGUgYXQgc2F5aGVudGFpLmN4IChub3cgc3R1
+Y2sKLy8gYmVoaW5kIGEgaGFyZCBDbG91ZGZsYXJlIHdhbGwpIGFuZCBtb3ZlZCB0byBzYXloZW50
+YWkud2lraSwgYSBkaWZmZXJlbnQKLy8gcGxhdGZvcm0gKEhhbGltLXN0eWxlIHRoZW1lKTogbGlz
+dCAvZGFuaC1zYWNoLCBkZXRhaWwgL3RydXllbi88c2x1Zz4uaHRtbCwKLy8gcmVhZGVyIC9kb2Mt
+dHJ1eWVuLzxzbHVnPi9jaGFwdGVyLTxuPi5odG1sLCBpbWFnZXMgb24gaW1hZ2Uuc2h0Y2RuLnRv
+cC4KLy8gTm8gQ2xvdWRmbGFyZSBjaGFsbGVuZ2Ugb24gLndpa2kgKHZlcmlmaWVkIGZyb20gVk0g
+KyBvbi1kZXZpY2UgU2FmYXJpKS4KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCmZ1bmN0aW9uIGdl
+dE1hbmlmZXN0KCkgewogICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KHsKICAgICAgICAiaWQiOiAi
+c2F5aGVudGFpIiwKICAgICAgICAibmFtZSI6ICJTYXlIZW50YWkiLAogICAgICAgICJ2ZXJzaW9u
+IjogIjIuMC4wIiwKICAgICAgICAiYmFzZVVybCI6ICJodHRwczovL3NheWhlbnRhaS53aWtpIiwK
+ICAgICAgICAiaWNvblVybCI6ICJodHRwczovL3NheWhlbnRhaS53aWtpL2Zhdmljb24uaWNvIiwK
+ICAgICAgICAiaXNFbmFibGVkIjogdHJ1ZSwKICAgICAgICAiaXNBZHVsdCI6IHRydWUsCiAgICAg
+ICAgInR5cGUiOiAiTUFOR0EiLAogICAgICAgICJsYXlvdXRUeXBlIjogIlZFUlRJQ0FMIgogICAg
+fSk7Cn0KCmZ1bmN0aW9uIGdldEhvbWVTZWN0aW9ucygpIHsKICAgIHJldHVybiBKU09OLnN0cmlu
+Z2lmeShbCiAgICAgICAgeyBzbHVnOiAnJywgdGl0bGU6ICdUcnV54buHbiBN4bubaSBD4bqtcCBO
+aOG6rXQnLCB0eXBlOiAnR3JpZCcsIHBhdGg6ICcnIH0KICAgIF0pOwp9CgpmdW5jdGlvbiBnZXRQ
+cmltYXJ5Q2F0ZWdvcmllcygpIHsKICAgIHJldHVybiBKU09OLnN0cmluZ2lmeShbCiAgICAgICAg
+eyBuYW1lOiAnTeG7m2kgTmjhuqV0Jywgc2x1ZzogJycgfSwKICAgICAgICB7IG5hbWU6ICdNYW5o
+d2EnLCBzbHVnOiAndGhlLWxvYWkvbWFuaHdhJyB9LAogICAgICAgIHsgbmFtZTogJ0RyYW1hJywg
+c2x1ZzogJ3RoZS1sb2FpL2RyYW1hJyB9LAogICAgICAgIHsgbmFtZTogJ1JvbWFuY2UnLCBzbHVn
+OiAndGhlLWxvYWkvcm9tYW5jZScgfSwKICAgICAgICB7IG5hbWU6ICdBY3Rpb24nLCBzbHVnOiAn
+dGhlLWxvYWkvYWN0aW9uJyB9LAogICAgICAgIHsgbmFtZTogJ0FkdWx0Jywgc2x1ZzogJ3RoZS1s
+b2FpL2FkdWx0JyB9CiAgICBdKTsKfQoKZnVuY3Rpb24gZ2V0RmlsdGVyQ29uZmlnKCkgewogICAg
+cmV0dXJuIEpTT04uc3RyaW5naWZ5KHsKICAgICAgICBzb3J0OiBbCiAgICAgICAgICAgIHsgbmFt
+ZTogJ03hu5tpIGPhuq1wIG5o4bqtdCcsIHZhbHVlOiAnbGF0ZXN0JyB9CiAgICAgICAgXSwKICAg
+ICAgICBjYXRlZ29yeTogWwogICAgICAgICAgICB7IG5hbWU6ICJNYW5od2EiLCB2YWx1ZTogIm1h
+bmh3YSIgfSwKICAgICAgICAgICAgeyBuYW1lOiAiRHJhbWEiLCB2YWx1ZTogImRyYW1hIiB9LAog
+ICAgICAgICAgICB7IG5hbWU6ICJSb21hbmNlIiwgdmFsdWU6ICJyb21hbmNlIiB9LAogICAgICAg
+ICAgICB7IG5hbWU6ICJBY3Rpb24iLCB2YWx1ZTogImFjdGlvbiIgfQogICAgICAgIF0KICAgIH0p
+Owp9CgovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PQovLyBVUkwgR0VORVJBVElPTgovLyA9PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PQoKdmFyIEJBU0UgPSAiaHR0cHM6Ly9zYXloZW50YWkud2lraSI7CgpmdW5j
+dGlvbiBnZXRVcmxMaXN0KHNsdWcsIGZpbHRlcnNKc29uKSB7CiAgICB2YXIgZmlsdGVycyA9IEpT
+T04ucGFyc2UoZmlsdGVyc0pzb24gfHwgInt9Iik7CiAgICB2YXIgcGFnZSA9IGZpbHRlcnMucGFn
+ZSB8fCAxOwoKICAgIGlmIChmaWx0ZXJzLmNhdGVnb3J5KSB7CiAgICAgICAgcmV0dXJuIEJBU0Ug
+KyAiL3RoZS1sb2FpLyIgKyBmaWx0ZXJzLmNhdGVnb3J5ICsgIj9wYWdlPSIgKyBwYWdlOwogICAg
+fQogICAgaWYgKHNsdWcgJiYgc2x1Zy5pbmRleE9mKCd0aGUtbG9haS8nKSA9PT0gMCkgewogICAg
+ICAgIHJldHVybiBCQVNFICsgIi8iICsgc2x1ZyArICI/cGFnZT0iICsgcGFnZTsKICAgIH0KICAg
+IHJldHVybiBCQVNFICsgIi9kYW5oLXNhY2g/cGFnZT0iICsgcGFnZTsKfQoKZnVuY3Rpb24gZ2V0
+VXJsU2VhcmNoKGtleXdvcmQsIGZpbHRlcnNKc29uKSB7CiAgICB2YXIgZmlsdGVycyA9IEpTT04u
+cGFyc2UoZmlsdGVyc0pzb24gfHwgInt9Iik7CiAgICB2YXIgcGFnZSA9IGZpbHRlcnMucGFnZSB8
+fCAxOwogICAgdmFyIHVybCA9IEJBU0UgKyAiL3NlYXJjaD9xPSIgKyBlbmNvZGVVUklDb21wb25l
+bnQoa2V5d29yZCk7CiAgICBpZiAocGFnZSA+IDEpIHVybCArPSAiJnBhZ2U9IiArIHBhZ2U7CiAg
+ICByZXR1cm4gdXJsOwp9CgpmdW5jdGlvbiBnZXRVcmxEZXRhaWwoc2x1ZykgewogICAgaWYgKCFz
+bHVnKSByZXR1cm4gIiI7CiAgICBpZiAoc2x1Zy5pbmRleE9mKCJodHRwIikgPT09IDApIHJldHVy
+biBzbHVnOwogICAgcmV0dXJuIEJBU0UgKyAiL3RydXllbi8iICsgc2x1ZyArICIuaHRtbCI7Cn0K
+CmZ1bmN0aW9uIGdldFVybENhdGVnb3JpZXMoKSB7IHJldHVybiBCQVNFICsgIi8iOyB9CmZ1bmN0
+aW9uIGdldFVybENvdW50cmllcygpIHsgcmV0dXJuICIiOyB9CmZ1bmN0aW9uIGdldFVybFllYXJz
+KCkgeyByZXR1cm4gIiI7IH0KCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFVUSUxTCi8vID09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09Cgp2YXIgUGx1Z2luVXRpbHMgPSB7CiAgICBjbGVhblRleHQ6IGZ1
+bmN0aW9uICh0ZXh0KSB7CiAgICAgICAgaWYgKCF0ZXh0KSByZXR1cm4gIiI7CiAgICAgICAgcmV0
+dXJuIHRleHQucmVwbGFjZSgvPFtePl0qPi9nLCAiIikKICAgICAgICAgICAgLnJlcGxhY2UoLyZh
+bXA7L2csICImIikKICAgICAgICAgICAgLnJlcGxhY2UoLyZxdW90Oy9nLCAnIicpCiAgICAgICAg
+ICAgIC5yZXBsYWNlKC8mIzAzOTsvZywgIiciKQogICAgICAgICAgICAucmVwbGFjZSgvJiMzOTsv
+ZywgIiciKQogICAgICAgICAgICAucmVwbGFjZSgvJmx0Oy9nLCAiPCIpCiAgICAgICAgICAgIC5y
+ZXBsYWNlKC8mZ3Q7L2csICI+IikKICAgICAgICAgICAgLnJlcGxhY2UoL1xzKy9nLCAiICIpCiAg
+ICAgICAgICAgIC50cmltKCk7CiAgICB9Cn07CgovLyA9PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQovLyBQ
+QVJTRVJTCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgpmdW5jdGlvbiBwYXJzZUxpc3RSZXNwb25z
+ZShodG1sKSB7CiAgICB2YXIgaXRlbXMgPSBbXTsKICAgIHZhciBmb3VuZFNsdWdzID0ge307Cgog
+ICAgLy8gQ2FyZHMgYXJlIDxhcnRpY2xlIGNsYXNzPSJ0aHVtYiAuLi4iPiBibG9ja3MgY29udGFp
+bmluZyBhIGhhbGltLXRodW1iCiAgICAvLyBhbmNob3IgKGhyZWYgKyB0aXRsZSksIGEgbGF6eSBj
+b3ZlciAoZGF0YS1zcmMpIGFuZCBhbiBlcGlzb2RlIGJhZGdlLgogICAgdmFyIGNodW5rcyA9IGh0
+bWwuc3BsaXQoLzxhcnRpY2xlW14+XSpjbGFzcz0iW14iXSp0aHVtYlteIl0qIltePl0qPi9pKTsK
+ICAgIGZvciAodmFyIGkgPSAxOyBpIDwgY2h1bmtzLmxlbmd0aDsgaSsrKSB7CiAgICAgICAgdmFy
+IGNodW5rID0gY2h1bmtzW2ldLnN1YnN0cmluZygwLCA0MDAwKTsKCiAgICAgICAgdmFyIGxpbmtN
+YXRjaCA9IGNodW5rLm1hdGNoKC88YVtePl0qY2xhc3M9ImhhbGltLXRodW1iIltePl0qaHJlZj0i
+aHR0cHM6XC9cL3NheWhlbnRhaVwud2lraVwvdHJ1eWVuXC8oW2EtejAtOS1dKz8pKD86XC5odG1s
+KT8iW14+XSp0aXRsZT0iKFteIl0qKSIvaSkgfHwKICAgICAgICAgICAgY2h1bmsubWF0Y2goLzxh
+W14+XSpocmVmPSJodHRwczpcL1wvc2F5aGVudGFpXC53aWtpXC90cnV5ZW5cLyhbYS16MC05LV0r
+PykoPzpcLmh0bWwpPyJbXj5dKj4vaSk7CiAgICAgICAgaWYgKCFsaW5rTWF0Y2gpIGNvbnRpbnVl
+OwoKICAgICAgICB2YXIgc2x1ZyA9IGxpbmtNYXRjaFsxXTsKICAgICAgICB2YXIgdGl0bGUgPSBs
+aW5rTWF0Y2hbMl0gPyBQbHVnaW5VdGlscy5jbGVhblRleHQobGlua01hdGNoWzJdKSA6ICIiOwog
+ICAgICAgIGlmICghdGl0bGUpIHsKICAgICAgICAgICAgdmFyIGgyID0gY2h1bmsubWF0Y2goLzxo
+MltePl0qY2xhc3M9IlteIl0qZW50cnktdGl0bGVbXiJdKiJbXj5dKj4oW1xzXFNdKj8pPFwvaDI+
+L2kpOwogICAgICAgICAgICBpZiAoaDIpIHRpdGxlID0gUGx1Z2luVXRpbHMuY2xlYW5UZXh0KGgy
+WzFdKTsKICAgICAgICB9CgogICAgICAgIHZhciB0aHVtYk1hdGNoID0gY2h1bmsubWF0Y2goL2Rh
+dGEtc3JjPSIoaHR0cHM6XC9cL2ltYWdlXC5zaHRjZG5cLnRvcFwvW14iXSspIi9pKSB8fAogICAg
+ICAgICAgICBjaHVuay5tYXRjaCgvPGltZ1tePl0rc3JjPSIoaHR0cHM6XC9cL2ltYWdlXC5zaHRj
+ZG5cLnRvcFwvW14iXSspIi9pKTsKICAgICAgICB2YXIgdGh1bWIgPSB0aHVtYk1hdGNoID8gdGh1
+bWJNYXRjaFsxXSA6ICIiOwoKICAgICAgICB2YXIgZXBNYXRjaCA9IGNodW5rLm1hdGNoKC88c3Bh
+bltePl0qY2xhc3M9ImVwaXNvZGUiW14+XSo+KFtcc1xTXSo/KTxcL3NwYW4+L2kpOwogICAgICAg
+IHZhciBlcGlzb2RlID0gZXBNYXRjaCA/IFBsdWdpblV0aWxzLmNsZWFuVGV4dChlcE1hdGNoWzFd
+KSA6ICIiOwoKICAgICAgICBpZiAoc2x1ZyAmJiAhZm91bmRTbHVnc1tzbHVnXSkgewogICAgICAg
+ICAgICBpdGVtcy5wdXNoKHsKICAgICAgICAgICAgICAgIGlkOiBzbHVnLAogICAgICAgICAgICAg
+ICAgdGl0bGU6IHRpdGxlIHx8IHNsdWcsCiAgICAgICAgICAgICAgICBwb3N0ZXJVcmw6IHRodW1i
+LAogICAgICAgICAgICAgICAgYmFja2Ryb3BVcmw6IHRodW1iLAogICAgICAgICAgICAgICAgZGVz
+Y3JpcHRpb246ICIiLAogICAgICAgICAgICAgICAgZXBpc29kZV9jdXJyZW50OiBlcGlzb2RlLAog
+ICAgICAgICAgICAgICAgcXVhbGl0eTogIkhEIiwKICAgICAgICAgICAgICAgIGxhbmc6ICJWaWV0
+c3ViIgogICAgICAgICAgICB9KTsKICAgICAgICAgICAgZm91bmRTbHVnc1tzbHVnXSA9IHRydWU7
+CiAgICAgICAgfQogICAgfQoKICAgIC8vIFBhZ2luYXRpb246IDxsaSBjbGFzcz0iYWN0aXZlIj48
+YSBocmVmPSIjIj4yPC9hPjwvbGk+OyB0b3RhbCBmcm9tIHBhZ2U9IGxpbmtzLgogICAgdmFyIGN1
+cnJlbnRQYWdlID0gMTsKICAgIHZhciBjdXJNYXRjaCA9IGh0bWwubWF0Y2goLzxsaVtePl0qY2xh
+c3M9ImFjdGl2ZSJbXj5dKj5ccyo8YVtePl0qPihcZCspPFwvYT4vaSk7CiAgICBpZiAoY3VyTWF0
+Y2gpIGN1cnJlbnRQYWdlID0gcGFyc2VJbnQoY3VyTWF0Y2hbMV0pOwoKICAgIHZhciB0b3RhbFBh
+Z2VzID0gY3VycmVudFBhZ2U7CiAgICB2YXIgcGFnZVJlZ2V4ID0gL1s/Jl1wYWdlPShcZCspL2c7
+CiAgICB2YXIgcE1hdGNoOwogICAgd2hpbGUgKChwTWF0Y2ggPSBwYWdlUmVnZXguZXhlYyhodG1s
+KSkgIT09IG51bGwpIHsKICAgICAgICB2YXIgcCA9IHBhcnNlSW50KHBNYXRjaFsxXSk7CiAgICAg
+ICAgaWYgKHAgPiB0b3RhbFBhZ2VzKSB0b3RhbFBhZ2VzID0gcDsKICAgIH0KCiAgICByZXR1cm4g
+SlNPTi5zdHJpbmdpZnkoewogICAgICAgIGl0ZW1zOiBpdGVtcywKICAgICAgICBwYWdpbmF0aW9u
+OiB7CiAgICAgICAgICAgIGN1cnJlbnRQYWdlOiBjdXJyZW50UGFnZSwKICAgICAgICAgICAgdG90
+YWxQYWdlczogdG90YWxQYWdlcyB8fCAxLAogICAgICAgICAgICB0b3RhbEl0ZW1zOiBpdGVtcy5s
+ZW5ndGggKiAodG90YWxQYWdlcyB8fCAxKSwKICAgICAgICAgICAgaXRlbXNQZXJQYWdlOiBpdGVt
+cy5sZW5ndGgKICAgICAgICB9CiAgICB9KTsKfQoKZnVuY3Rpb24gcGFyc2VTZWFyY2hSZXNwb25z
+ZShodG1sKSB7CiAgICByZXR1cm4gcGFyc2VMaXN0UmVzcG9uc2UoaHRtbCk7Cn0KCmZ1bmN0aW9u
+IHBhcnNlTW92aWVEZXRhaWwoaHRtbCkgewogICAgdHJ5IHsKICAgICAgICAvLyBUaXRsZQogICAg
+ICAgIHZhciB0aXRsZSA9ICIiOwogICAgICAgIHZhciBvZ1RpdGxlID0gaHRtbC5tYXRjaCgvPG1l
+dGEgcHJvcGVydHk9Im9nOnRpdGxlIiBjb250ZW50PSIoW14iXSspIi9pKTsKICAgICAgICBpZiAo
+b2dUaXRsZSkgdGl0bGUgPSBQbHVnaW5VdGlscy5jbGVhblRleHQob2dUaXRsZVsxXSkucmVwbGFj
+ZSgvXHMqLVxzKlNheUhlbnRhaVxzKiQvaSwgIiIpLnJlcGxhY2UoL15UcnV54buHblxzKy9pLCAi
+Iik7CiAgICAgICAgaWYgKCF0aXRsZSkgewogICAgICAgICAgICB2YXIgaDEgPSBodG1sLm1hdGNo
+KC88aDFbXj5dKj4oW1xzXFNdKj8pPFwvaDE+L2kpOwogICAgICAgICAgICBpZiAoaDEpIHRpdGxl
+ID0gUGx1Z2luVXRpbHMuY2xlYW5UZXh0KGgxWzFdKTsKICAgICAgICB9CgogICAgICAgIC8vIFBv
+c3RlcgogICAgICAgIHZhciBwb3N0ZXIgPSAiIjsKICAgICAgICB2YXIgb2dJbWFnZSA9IGh0bWwu
+bWF0Y2goLzxtZXRhIHByb3BlcnR5PSJvZzppbWFnZSIgY29udGVudD0iKFteIl0rKSIvaSk7CiAg
+ICAgICAgaWYgKG9nSW1hZ2UpIHBvc3RlciA9IG9nSW1hZ2VbMV07CgogICAgICAgIC8vIFN0YXR1
+czogIlRy4bqhbmcgVGjDoWk6IDwvc3Bhbj48c3Bhbi4uLj7EkMOjIGhvw6BuIHRow6BuaDwvc3Bh
+bj4iCiAgICAgICAgdmFyIHN0YXR1cyA9ICLEkGFuZyB0aeG6v24gaMOgbmgiOwogICAgICAgIHZh
+ciBzdElkeCA9IGh0bWwuaW5kZXhPZigiVHLhuqFuZyBUaMOhaToiKTsKICAgICAgICBpZiAoc3RJ
+ZHggPj0gMCkgewogICAgICAgICAgICB2YXIgc3RUZXh0ID0gUGx1Z2luVXRpbHMuY2xlYW5UZXh0
+KGh0bWwuc3Vic3RyaW5nKHN0SWR4LCBzdElkeCArIDI2MCkucmVwbGFjZSgvXlRy4bqhbmcgVGjD
+oWk6XHMqL2ksICIiKSk7CiAgICAgICAgICAgIGlmIChzdFRleHQpIHN0YXR1cyA9IHN0VGV4dC5z
+cGxpdCgiTMaw4bujdCBYZW0iKVswXS50cmltKCkgfHwgc3RhdHVzOwogICAgICAgIH0KCiAgICAg
+ICAgLy8gRGVzY3JpcHRpb246IHRleHQgYmxvY2sgYWZ0ZXIgdGhlICJO4buZaSBkdW5nIiBoZWFk
+aW5nCiAgICAgICAgdmFyIGRlc2NyaXB0aW9uID0gIiI7CiAgICAgICAgdmFyIGRlc2NJZHggPSBo
+dG1sLmluZGV4T2YoIk7hu5lpIGR1bmciKTsKICAgICAgICBpZiAoZGVzY0lkeCA+PSAwKSB7CiAg
+ICAgICAgICAgIHZhciByYXcgPSBodG1sLnN1YnN0cmluZyhkZXNjSWR4LCBkZXNjSWR4ICsgMjYw
+MCk7CiAgICAgICAgICAgIHZhciB0ZXh0ID0gUGx1Z2luVXRpbHMuY2xlYW5UZXh0KHJhdykucmVw
+bGFjZSgvXk7hu5lpIGR1bmcoIFRydXnhu4duKT9ccyovaSwgIiIpOwogICAgICAgICAgICBkZXNj
+cmlwdGlvbiA9IHRleHQuc3Vic3RyaW5nKDAsIDcwMCk7CiAgICAgICAgfQoKICAgICAgICAvLyBD
+aGFwdGVyczogPGxpIGNsYXNzPSJjaGFwdGVyIj48YSBocmVmPSIuLi4vZG9jLXRydXllbi88c2x1
+Zz4vPGNoYXA+Lmh0bWwiIHRpdGxlPSJDaGFwdGVyIE4iPgogICAgICAgIHZhciBjaGFwdGVycyA9
+IFtdOwogICAgICAgIHZhciBzZWVuQ2hhcCA9IHt9OwogICAgICAgIHZhciBjaGFwUmVnZXggPSAv
+PGxpW14+XSpjbGFzcz0iY2hhcHRlciJbXj5dKj5ccyo8YVtePl0raHJlZj0iKGh0dHBzOlwvXC9z
+YXloZW50YWlcLndpa2lcL2RvYy10cnV5ZW5cL1teIl0rKSJbXj5dKj4vZ2k7CiAgICAgICAgdmFy
+IGNNYXRjaDsKICAgICAgICB3aGlsZSAoKGNNYXRjaCA9IGNoYXBSZWdleC5leGVjKGh0bWwpKSAh
+PT0gbnVsbCkgewogICAgICAgICAgICBpZiAoIXNlZW5DaGFwW2NNYXRjaFsxXV0pIHsKICAgICAg
+ICAgICAgICAgIHNlZW5DaGFwW2NNYXRjaFsxXV0gPSB0cnVlOwogICAgICAgICAgICAgICAgY2hh
+cHRlcnMucHVzaCh7IGlkOiBjTWF0Y2hbMV0sIHVybDogY01hdGNoWzFdIH0pOwogICAgICAgICAg
+ICB9CiAgICAgICAgfQogICAgICAgIC8vIEZhbGxiYWNrIChlLmcuIG9uZXNob3QgcGFnZXMgd2l0
+aG91dCBsaS5jaGFwdGVyKTogYW55IHJlYWRlciBsaW5rcy4KICAgICAgICBpZiAoY2hhcHRlcnMu
+bGVuZ3RoID09PSAwKSB7CiAgICAgICAgICAgIHZhciBhbnlSZWdleCA9IC88YVtePl0raHJlZj0i
+KGh0dHBzOlwvXC9zYXloZW50YWlcLndpa2lcL2RvYy10cnV5ZW5cL1teIl0rKSJbXj5dKj4vZ2k7
+CiAgICAgICAgICAgIHZhciBhTWF0Y2g7CiAgICAgICAgICAgIHdoaWxlICgoYU1hdGNoID0gYW55
+UmVnZXguZXhlYyhodG1sKSkgIT09IG51bGwpIHsKICAgICAgICAgICAgICAgIGlmICghc2VlbkNo
+YXBbYU1hdGNoWzFdXSkgewogICAgICAgICAgICAgICAgICAgIHNlZW5DaGFwW2FNYXRjaFsxXV0g
+PSB0cnVlOwogICAgICAgICAgICAgICAgICAgIGNoYXB0ZXJzLnB1c2goeyBpZDogYU1hdGNoWzFd
+LCB1cmw6IGFNYXRjaFsxXSB9KTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAg
+ICAgIH0KICAgICAgICAvLyBOYW1lICsgc29ydCBhc2NlbmRpbmcgYnkgY2hhcHRlciBudW1iZXIg
+cGFyc2VkIGZyb20gdGhlIFVSTCB0YWlsLgogICAgICAgIGZvciAodmFyIGsgPSAwOyBrIDwgY2hh
+cHRlcnMubGVuZ3RoOyBrKyspIHsKICAgICAgICAgICAgdmFyIHRhaWwgPSBjaGFwdGVyc1trXS51
+cmwuc3Vic3RyaW5nKGNoYXB0ZXJzW2tdLnVybC5sYXN0SW5kZXhPZignLycpICsgMSkucmVwbGFj
+ZSgvXC5odG1sJC9pLCAiIik7CiAgICAgICAgICAgIHZhciBudW1NYXRjaCA9IHRhaWwubWF0Y2go
+L2NoYXB0ZXItKFtcZC5dKykvaSk7CiAgICAgICAgICAgIGlmIChudW1NYXRjaCkgewogICAgICAg
+ICAgICAgICAgY2hhcHRlcnNba10ubnVtID0gcGFyc2VGbG9hdChudW1NYXRjaFsxXSk7CiAgICAg
+ICAgICAgICAgICBjaGFwdGVyc1trXS5uYW1lID0gIkNoYXB0ZXIgIiArIG51bU1hdGNoWzFdOwog
+ICAgICAgICAgICAgICAgLy8gVmFyaWFudHMgbGlrZSBjaGFwdGVyLTgtdjItY2hpbmgtdGh1YyBh
+cmUgZGlzdGluY3QgcmVsZWFzZXMuCiAgICAgICAgICAgICAgICB2YXIgcmVzdCA9IHRhaWwuc3Vi
+c3RyaW5nKHRhaWwudG9Mb3dlckNhc2UoKS5pbmRleE9mKCJjaGFwdGVyLSIgKyBudW1NYXRjaFsx
+XSkgKyAoImNoYXB0ZXItIiArIG51bU1hdGNoWzFdKS5sZW5ndGgpLnJlcGxhY2UoL14tKy8sICIi
+KTsKICAgICAgICAgICAgICAgIGlmIChyZXN0KSBjaGFwdGVyc1trXS5uYW1lICs9ICIgKCIgKyBy
+ZXN0LnNwbGl0KCItIilbMF0gKyAiKSI7CiAgICAgICAgICAgIH0gZWxzZSB7CiAgICAgICAgICAg
+ICAgICBjaGFwdGVyc1trXS5udW0gPSAwOwogICAgICAgICAgICAgICAgY2hhcHRlcnNba10ubmFt
+ZSA9ICh0YWlsLnRvTG93ZXJDYXNlKCkgPT09ICJvbmVzaG90IikgPyAiT25lc2hvdCIgOiB0YWls
+OwogICAgICAgICAgICB9CiAgICAgICAgICAgIGNoYXB0ZXJzW2tdLnNsdWcgPSB0YWlsOwogICAg
+ICAgICAgICBkZWxldGUgY2hhcHRlcnNba10udXJsOwogICAgICAgIH0KICAgICAgICBjaGFwdGVy
+cy5zb3J0KGZ1bmN0aW9uIChhLCBiKSB7IHJldHVybiBhLm51bSAtIGIubnVtOyB9KTsKICAgICAg
+ICBmb3IgKHZhciBqID0gMDsgaiA8IGNoYXB0ZXJzLmxlbmd0aDsgaisrKSBkZWxldGUgY2hhcHRl
+cnNbal0ubnVtOwoKICAgICAgICB2YXIgc2VydmVycyA9IFt7CiAgICAgICAgICAgIG5hbWU6ICJT
+ZXJ2ZXIgMSIsCiAgICAgICAgICAgIGVwaXNvZGVzOiBjaGFwdGVycwogICAgICAgIH1dOwoKICAg
+ICAgICAvLyBDYXRlZ29yaWVzOiB0aGUgbWFuZ2EncyBvd24gZ2VucmVzIGFyZSByZWw9ImNhdGVn
+b3J5IHRhZyIgYW5jaG9ycwogICAgICAgIC8vICh0aGUgcGxhaW4gL3RoZS1sb2FpLyBsaW5rIHNl
+dCBlbHNld2hlcmUgaXMgdGhlIHNpdGUtd2lkZSBtZW51KS4KICAgICAgICB2YXIgY2F0ZWdvcmll
+cyA9IFtdOwogICAgICAgIHZhciBzZWVuQ2F0ID0ge307CiAgICAgICAgdmFyIGNhdFJlZ2V4ID0g
+LzxhW14+XSt0aXRsZT0iKFteIl0rKSJbXj5dKnJlbD0iY2F0ZWdvcnkgdGFnIltePl0qaHJlZj0i
+aHR0cHM6XC9cL3NheWhlbnRhaVwud2lraVwvdGhlLWxvYWlcLyhbYS16MC05LV0rKSIvZ2k7CiAg
+ICAgICAgdmFyIGNtOwogICAgICAgIHdoaWxlICgoY20gPSBjYXRSZWdleC5leGVjKGh0bWwpKSAh
+PT0gbnVsbCkgewogICAgICAgICAgICBpZiAoL15cZCskLy50ZXN0KGNtWzJdKSkgY29udGludWU7
+CiAgICAgICAgICAgIHZhciBjbmFtZSA9IFBsdWdpblV0aWxzLmNsZWFuVGV4dChjbVsxXSk7CiAg
+ICAgICAgICAgIGlmIChjbmFtZSAmJiAhc2VlbkNhdFtjbmFtZV0pIHsKICAgICAgICAgICAgICAg
+IHNlZW5DYXRbY25hbWVdID0gdHJ1ZTsKICAgICAgICAgICAgICAgIGNhdGVnb3JpZXMucHVzaChj
+bmFtZSk7CiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIHJldHVybiBKU09OLnN0cmlu
+Z2lmeSh7CiAgICAgICAgICAgIGlkOiAiIiwKICAgICAgICAgICAgdGl0bGU6IHRpdGxlLAogICAg
+ICAgICAgICBwb3N0ZXJVcmw6IHBvc3RlciwKICAgICAgICAgICAgYmFja2Ryb3BVcmw6IHBvc3Rl
+ciwKICAgICAgICAgICAgZGVzY3JpcHRpb246IGRlc2NyaXB0aW9uLAogICAgICAgICAgICBzZXJ2
+ZXJzOiBzZXJ2ZXJzLAogICAgICAgICAgICBjYXRlZ29yeTogY2F0ZWdvcmllcy5qb2luKCIsICIp
+LAogICAgICAgICAgICBzdGF0dXM6IHN0YXR1cywKICAgICAgICAgICAgcXVhbGl0eTogIkhEIiwK
+ICAgICAgICAgICAgbGFuZzogIlZpZXRzdWIiCiAgICAgICAgfSk7CgogICAgfSBjYXRjaCAoZSkg
+ewogICAgICAgIHJldHVybiAibnVsbCI7CiAgICB9Cn0KCmZ1bmN0aW9uIHBhcnNlRGV0YWlsUmVz
+cG9uc2UoaHRtbCkgewogICAgdHJ5IHsKICAgICAgICB2YXIgaW1hZ2VzID0gW107CiAgICAgICAg
+Ly8gUmVhZGVyIHBhZ2VzIGFyZSA8aW1nIGNsYXNzPSdzaW1nJyBzcmM9J2h0dHBzOi8vaW1hZ2Uu
+c2h0Y2RuLnRvcC9tYW5nYS1pbWFnZXMvLi4uJz4KICAgICAgICB2YXIgdGFnUmVnZXggPSAvPGlt
+Z1tePl0qY2xhc3M9WyciXXNpbWdbJyJdW14+XSo+L2dpOwogICAgICAgIHZhciB0YWc7CiAgICAg
+ICAgd2hpbGUgKCh0YWcgPSB0YWdSZWdleC5leGVjKGh0bWwpKSAhPT0gbnVsbCkgewogICAgICAg
+ICAgICB2YXIgc3JjTWF0Y2ggPSB0YWdbMF0ubWF0Y2goL3NyYz1bJyJdKFteJyJdKylbJyJdL2kp
+OwogICAgICAgICAgICBpZiAoc3JjTWF0Y2ggJiYgaW1hZ2VzLmluZGV4T2Yoc3JjTWF0Y2hbMV0p
+ID09PSAtMSkgewogICAgICAgICAgICAgICAgaW1hZ2VzLnB1c2goc3JjTWF0Y2hbMV0ucmVwbGFj
+ZSgvJmFtcDsvZywgIiYiKSk7CiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIHJldHVy
+biBKU09OLnN0cmluZ2lmeSh7CiAgICAgICAgICAgIGltYWdlczogaW1hZ2VzLAogICAgICAgICAg
+ICBoZWFkZXJzOiB7CiAgICAgICAgICAgICAgICAiVXNlci1BZ2VudCI6ICJNb3ppbGxhLzUuMCAo
+V2luZG93cyBOVCAxMC4wOyBXaW42NDsgeDY0KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBs
+aWtlIEdlY2tvKSBDaHJvbWUvMTIwLjAuMC4wIFNhZmFyaS81MzcuMzYiLAogICAgICAgICAgICAg
+ICAgIlJlZmVyZXIiOiAiaHR0cHM6Ly9zYXloZW50YWkud2lraS8iCiAgICAgICAgICAgIH0KICAg
+ICAgICB9KTsKICAgIH0gY2F0Y2ggKGUpIHsKICAgICAgICByZXR1cm4gInt9IjsKICAgIH0KfQoK
+ZnVuY3Rpb24gcGFyc2VDYXRlZ29yaWVzUmVzcG9uc2UoaHRtbCkgewogICAgdmFyIGNhdGVnb3Jp
+ZXMgPSBbXTsKICAgIHZhciBzZWVuID0ge307CiAgICB2YXIgY2F0UmVnZXggPSAvPGFbXj5dK2hy
+ZWY9Imh0dHBzOlwvXC9zYXloZW50YWlcLndpa2lcL3RoZS1sb2FpXC8oW2EtejAtOS1dKykiW14+
+XSo+KFtcc1xTXSo/KTxcL2E+L2dpOwogICAgdmFyIG07CiAgICB3aGlsZSAoKG0gPSBjYXRSZWdl
+eC5leGVjKGh0bWwpKSAhPT0gbnVsbCkgewogICAgICAgIGlmICgvXlxkKyQvLnRlc3QobVsxXSkp
+IGNvbnRpbnVlOwogICAgICAgIHZhciBuYW1lID0gUGx1Z2luVXRpbHMuY2xlYW5UZXh0KG1bMl0p
+LnJlcGxhY2UoL14tXHMqLywgIiIpOwogICAgICAgIGlmIChuYW1lICYmICFzZWVuW21bMV1dKSB7
+CiAgICAgICAgICAgIHNlZW5bbVsxXV0gPSB0cnVlOwogICAgICAgICAgICBjYXRlZ29yaWVzLnB1
+c2goeyBuYW1lOiBuYW1lLCBzbHVnOiAidGhlLWxvYWkvIiArIG1bMV0gfSk7CiAgICAgICAgfQog
+ICAgfQogICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KGNhdGVnb3JpZXMpOwp9CgpmdW5jdGlvbiBw
+YXJzZUNvdW50cmllc1Jlc3BvbnNlKGh0bWwpIHsgcmV0dXJuICJbXSI7IH0KZnVuY3Rpb24gcGFy
+c2VZZWFyc1Jlc3BvbnNlKGh0bWwpIHsgcmV0dXJuICJbXSI7IH0K

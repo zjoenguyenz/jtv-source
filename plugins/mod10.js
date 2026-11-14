@@ -1,343 +1,208 @@
-// =============================================================================
-// CONFIGURATION & METADATA
-// =============================================================================
-
-function getManifest() {
-    return JSON.stringify({
-        "id": "misskon",
-        "name": "MissKon",
-        "version": "1.0.1",
-        "baseUrl": "https://misskon.com",
-        "iconUrl": "https://misskon.com/favicon.ico",
-        "isEnabled": true,
-        "isAdult": true,
-        "type": "MANGA",
-        "layoutType": "HORIZONTAL"
-    });
-}
-
-function getHomeSections() {
-    return JSON.stringify([
-        { slug: 'top3', title: 'Top 3', type: 'Horizontal', path: '' },
-        { slug: 'top7', title: 'Top 7', type: 'Horizontal', path: '' },
-        { slug: 'top30', title: 'Top 30', type: 'Horizontal', path: '' },
-        { slug: 'top60', title: 'Top 60', type: 'Horizontal', path: '' },
-        { slug: '', title: 'Mới Cập Nhật', type: 'Grid', path: '' }
-    ]);
-}
-
-function getPrimaryCategories() {
-    return JSON.stringify([
-        { name: 'AI Generated', slug: 'tag/ai-generated' },
-        { name: 'Cosplay', slug: 'tag/cosplay' },
-        { name: 'Japanese', slug: 'tag/jp' },
-        { name: 'MyGirl', slug: 'tag/mygirl' },
-        { name: 'JVAD', slug: 'tag/jvad' },
-        { name: 'Other', slug: 'tag/otherxxx' }
-    ]);
-}
-
-function getFilterConfig() {
-    return JSON.stringify({
-        sort: [
-            { name: 'Mới nhất', value: 'latest' }
-        ],
-        category: [
-            { name: "XIUREN", value: "xiuren" },
-            { name: "XiaoYu", value: "xiaoyu" },
-            { name: "XingYan", value: "xingyan" },
-            { name: "MyGirl", value: "mygirl" },
-            { name: "MFStar", value: "mfstar" }
-        ]
-    });
-}
-
-// =============================================================================
-// URL GENERATION
-// =============================================================================
-
-function getUrlList(slug, filtersJson) {
-    var filters = JSON.parse(filtersJson || "{}");
-    var page = filters.page || 1;
-    var baseUrl = "https://misskon.com";
-
-    var path = "";
-    if (filters.category) {
-        path = "/tag/" + filters.category;
-    } else if (slug) {
-        path = "/" + slug;
-    }
-
-    if (page > 1) {
-        return baseUrl + path + "/page/" + page + "/";
-    }
-    return baseUrl + path + "/";
-}
-
-function getUrlSearch(keyword, filtersJson) {
-    var filters = JSON.parse(filtersJson || "{}");
-    var page = filters.page || 1;
-    if (page > 1) {
-        return "https://misskon.com/page/" + page + "/?s=" + encodeURIComponent(keyword);
-    }
-    return "https://misskon.com/?s=" + encodeURIComponent(keyword);
-}
-
-function getUrlDetail(slug) {
-    if (!slug) return "";
-    if (slug.indexOf("http") === 0) return slug;
-    return "https://misskon.com/" + slug + "/";
-}
-
-function getUrlCategories() { return "https://misskon.com/"; }
-function getUrlCountries() { return ""; }
-function getUrlYears() { return ""; }
-
-// =============================================================================
-// UTILS
-// =============================================================================
-
-var PluginUtils = {
-    cleanText: function (text) {
-        if (!text) return "";
-        return text.replace(/<[^>]*>/g, "")
-            .replace(/&amp;/g, "&")
-            .replace(/&quot;/g, '"')
-            .replace(/&#039;/g, "'")
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/\s+/g, " ")
-            .trim();
-    }
-};
-
-// =============================================================================
-// PARSERS
-// =============================================================================
-
-function parseListResponse(html) {
-    var items = [];
-    var foundSlugs = {};
-
-    // Sahifa/TieLabs item structure: article.item-list
-    var itemRegex = /<article[^>]*class="[^"]*item-list[^"]*"[^>]*>([\s\S]*?)<\/article>/gi;
-    var match;
-
-    while ((match = itemRegex.exec(html)) !== null) {
-        var itemHtml = match[1];
-
-        // Extract Link and Slug
-        var linkMatch = itemHtml.match(/<h2[^>]*class="[^"]*post-box-title[^"]*"[^>]*>\s*<a[^>]+href="https?:\/\/misskon\.com\/([^"\/]+)\/?"/i) ||
-            itemHtml.match(/<div[^>]*class="post-thumbnail"[^>]*>\s*<a[^>]+href="https?:\/\/misskon\.com\/([^"\/]+)\/?"/i);
-        if (!linkMatch) continue;
-
-        var slug = linkMatch[1];
-        var title = "";
-        var titleM = itemHtml.match(/<h2[^>]*class="[^"]*post-box-title[^"]*"[^>]*>\s*<a[^>]*>([\s\S]*?)<\/a>/i);
-        if (titleM) title = PluginUtils.cleanText(titleM[1]);
-
-        var thumb = "";
-        var thumbM = itemHtml.match(/<img[^>]+data-src="([^"]+)"/i) ||
-            itemHtml.match(/<img[^>]+src="([^"]+)"/i);
-        if (thumbM) {
-            thumb = thumbM[1];
-            // If thumb is an SVG placeholder, ignore it and look for data-src
-            if (thumb.indexOf("data:image/svg+xml") !== -1) {
-                var dataSrcM = itemHtml.match(/data-src="([^"]+)"/i);
-                if (dataSrcM) thumb = dataSrcM[1];
-            }
-        }
-
-        if (slug && !foundSlugs[slug]) {
-            items.push({
-                id: slug,
-                title: title,
-                posterUrl: thumb,
-                backdropUrl: thumb,
-                description: "",
-                episode_current: "Gallery",
-                quality: "HD",
-                lang: "China"
-            });
-            foundSlugs[slug] = true;
-        }
-    }
-
-    // Pagination
-    var totalPages = 1;
-    var currentPage = 1;
-
-    var currentMatch = html.match(/<span[^>]*class="current"[^>]*>(\d+)<\/span>/i);
-    if (currentMatch) currentPage = parseInt(currentMatch[1]);
-
-    var pageRegex = /class="page"[^>]*>(\d+)<\/a>/g;
-    var pMatch;
-    while ((pMatch = pageRegex.exec(html)) !== null) {
-        var p = parseInt(pMatch[1]);
-        if (p > totalPages) totalPages = p;
-    }
-
-    return JSON.stringify({
-        items: items,
-        pagination: {
-            currentPage: currentPage,
-            totalPages: totalPages,
-            totalItems: items.length * totalPages,
-            itemsPerPage: items.length
-        }
-    });
-}
-
-function parseSearchResponse(html) {
-    return parseListResponse(html);
-}
-
-function parseMovieDetail(html) {
-    try {
-        var titleMatch = html.match(/<h1[^>]*class="name post-title entry-title"[^>]*>([\s\S]*?)<\/h1>/i) ||
-            html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-        var title = titleMatch ? PluginUtils.cleanText(titleMatch[1]) : "";
-
-        var poster = "";
-        // Try og:image
-        var ogMatch = html.match(/<meta property="og:image" content="([^"]+)"/i);
-        if (ogMatch) {
-            poster = ogMatch[1];
-        } else {
-            // Try twitter:image
-            var twMatch = html.match(/<meta name="twitter:image" content="([^"]+)"/i);
-            if (twMatch) {
-                poster = twMatch[1];
-            } else {
-                // Try to find in LD+JSON or schema
-                var schemaMatch = html.match(/"image":\s*\{\s*"@type":\s*"ImageObject",\s*"url":\s*"([^"]+)"/i) ||
-                    html.match(/"image":\s*"([^"]+)"/i);
-                if (schemaMatch) {
-                    poster = schemaMatch[1].replace(/\\/g, "");
-                } else {
-                    // Final fallback: use the first content image from the whole page
-                    var firstImgMatch = html.match(/<img[^>]+(?:data-src|src)="([^"]+(?:misskon\.com\/uploads|\/media\/|pok\.misskon\.com)[^"]+)"/i);
-                    if (firstImgMatch) poster = firstImgMatch[1];
-                }
-            }
-        }
-
-        // Chapters - handle post pagination
-        var channels = [];
-        // Page 1
-        var currentUrlM = html.match(/<link rel="canonical" href="([^"]+)"/i);
-        var baseUrl = currentUrlM ? currentUrlM[1].replace(/\/$/, "") : "";
-
-        // Find other pages
-        var pages = [{ id: baseUrl + "/", name: "Trang 1", slug: "1" }];
-        var pageRegex = /<a[^>]+href="([^"]+)"[^>]*class="post-page-numbers"[^>]*>(\d+)<\/a>/gi;
-        var pm;
-        var seenPages = { "1": true };
-
-        while ((pm = pageRegex.exec(html)) !== null) {
-            var pUrl = pm[1];
-            var pNum = pm[2];
-            if (!seenPages[pNum]) {
-                pages.push({
-                    id: pUrl,
-                    name: "Trang " + pNum,
-                    slug: pNum
-                });
-                seenPages[pNum] = true;
-            }
-        }
-
-        // Sort pages just in case
-        pages.sort(function (a, b) { return parseInt(a.slug) - parseInt(b.slug); });
-
-        var servers = [{
-            name: "Default",
-            episodes: pages
-        }];
-
-        return JSON.stringify({
-            id: "",
-            title: title,
-            posterUrl: poster,
-            backdropUrl: poster,
-            description: "",
-            servers: servers,
-            category: "Gallery, Model",
-            status: "Thành công",
-            quality: "HD",
-            lang: "China"
-        });
-
-    } catch (e) {
-        return "null";
-    }
-}
-
-function parseDetailResponse(html) {
-    try {
-        var images = [];
-
-        // 1. Target the main article block
-        var articleMatch = html.match(/<article[^>]*id="the-post"[^>]*>([\s\S]*?)<\/article>/i);
-        var contentHtml = articleMatch ? articleMatch[1] : html;
-
-        // 2. Remove YARPP (related posts) section
-        contentHtml = contentHtml.replace(/<div[^>]*class="[^"]*yarpp-related[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi, "");
-        contentHtml = contentHtml.replace(/<div[^>]*class="[^"]*yarpp-related[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, "");
-
-        // 3. Scan for content images in the filtered block
-        var imgTagRegex = /<img[^>]+>/gi;
-        var tagMatch;
-        while ((tagMatch = imgTagRegex.exec(contentHtml)) !== null) {
-            var tagHtml = tagMatch[0];
-
-            // Prioritize data-src over src for lazyload
-            var urlMatch = tagHtml.match(/data-src="([^"]+)"/i) || tagHtml.match(/src="([^"]+)"/i);
-            if (urlMatch) {
-                var url = urlMatch[1];
-
-                // Content images on MissKon usually reside in pok.misskon.com, cdn, uploads, or /media/
-                var isContentImg = url.indexOf("misskon.com") !== -1 ||
-                    url.indexOf("/media/") !== -1 ||
-                    url.indexOf("/uploads/") !== -1;
-
-                // Exclude obvious non-content images
-                var isGarbage = url.indexOf("data:image/svg+xml") !== -1 ||
-                    url.indexOf("misskon.ico") !== -1 ||
-                    url.indexOf("/ads/") !== -1 ||
-                    url.indexOf("ad-provider") !== -1 ||
-                    url.indexOf("gravatar") !== -1 ||
-                    url.indexOf("logo.2026") !== -1;
-
-                if (isContentImg && !isGarbage) {
-                    if (images.indexOf(url) === -1) {
-                        images.push(url);
-                    }
-                }
-            }
-        }
-
-        return JSON.stringify({
-            images: images,
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Referer": "https://misskon.com/"
-            }
-        });
-    } catch (e) {
-        return "{}";
-    }
-}
-
-function parseCategoriesResponse(html) {
-    return JSON.stringify([
-        { name: 'XIUREN', slug: 'tag/xiuren' },
-        { name: 'XiaoYu', slug: 'tag/xiaoyu' },
-        { name: 'XingYan', slug: 'tag/xingyan' },
-        { name: 'MFStar', slug: 'tag/mfstar' },
-        { name: 'MyGirl', slug: 'tag/mygirl' }
-    ]);
-}
-
-function parseCountriesResponse(html) { return "[]"; }
-function parseYearsResponse(html) { return "[]"; }
+Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT0KLy8gQ09ORklHVVJBVElPTiAmIE1FVEFEQVRBCi8vID09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09CgpmdW5jdGlvbiBnZXRNYW5pZmVzdCgpIHsKICAgIHJldHVybiBK
+U09OLnN0cmluZ2lmeSh7CiAgICAgICAgImlkIjogIm1pc3Nrb24iLAogICAgICAgICJuYW1lIjog
+Ik1pc3NLb24iLAogICAgICAgICJ2ZXJzaW9uIjogIjEuMC4xIiwKICAgICAgICAiYmFzZVVybCI6
+ICJodHRwczovL21pc3Nrb24uY29tIiwKICAgICAgICAiaWNvblVybCI6ICJodHRwczovL21pc3Nr
+b24uY29tL2Zhdmljb24uaWNvIiwKICAgICAgICAiaXNFbmFibGVkIjogdHJ1ZSwKICAgICAgICAi
+aXNBZHVsdCI6IHRydWUsCiAgICAgICAgInR5cGUiOiAiTUFOR0EiLAogICAgICAgICJsYXlvdXRU
+eXBlIjogIkhPUklaT05UQUwiCiAgICB9KTsKfQoKZnVuY3Rpb24gZ2V0SG9tZVNlY3Rpb25zKCkg
+ewogICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KFsKICAgICAgICB7IHNsdWc6ICd0b3AzJywgdGl0
+bGU6ICdUb3AgMycsIHR5cGU6ICdIb3Jpem9udGFsJywgcGF0aDogJycgfSwKICAgICAgICB7IHNs
+dWc6ICd0b3A3JywgdGl0bGU6ICdUb3AgNycsIHR5cGU6ICdIb3Jpem9udGFsJywgcGF0aDogJycg
+fSwKICAgICAgICB7IHNsdWc6ICd0b3AzMCcsIHRpdGxlOiAnVG9wIDMwJywgdHlwZTogJ0hvcml6
+b250YWwnLCBwYXRoOiAnJyB9LAogICAgICAgIHsgc2x1ZzogJ3RvcDYwJywgdGl0bGU6ICdUb3Ag
+NjAnLCB0eXBlOiAnSG9yaXpvbnRhbCcsIHBhdGg6ICcnIH0sCiAgICAgICAgeyBzbHVnOiAnJywg
+dGl0bGU6ICdN4bubaSBD4bqtcCBOaOG6rXQnLCB0eXBlOiAnR3JpZCcsIHBhdGg6ICcnIH0KICAg
+IF0pOwp9CgpmdW5jdGlvbiBnZXRQcmltYXJ5Q2F0ZWdvcmllcygpIHsKICAgIHJldHVybiBKU09O
+LnN0cmluZ2lmeShbCiAgICAgICAgeyBuYW1lOiAnQUkgR2VuZXJhdGVkJywgc2x1ZzogJ3RhZy9h
+aS1nZW5lcmF0ZWQnIH0sCiAgICAgICAgeyBuYW1lOiAnQ29zcGxheScsIHNsdWc6ICd0YWcvY29z
+cGxheScgfSwKICAgICAgICB7IG5hbWU6ICdKYXBhbmVzZScsIHNsdWc6ICd0YWcvanAnIH0sCiAg
+ICAgICAgeyBuYW1lOiAnTXlHaXJsJywgc2x1ZzogJ3RhZy9teWdpcmwnIH0sCiAgICAgICAgeyBu
+YW1lOiAnSlZBRCcsIHNsdWc6ICd0YWcvanZhZCcgfSwKICAgICAgICB7IG5hbWU6ICdPdGhlcics
+IHNsdWc6ICd0YWcvb3RoZXJ4eHgnIH0KICAgIF0pOwp9CgpmdW5jdGlvbiBnZXRGaWx0ZXJDb25m
+aWcoKSB7CiAgICByZXR1cm4gSlNPTi5zdHJpbmdpZnkoewogICAgICAgIHNvcnQ6IFsKICAgICAg
+ICAgICAgeyBuYW1lOiAnTeG7m2kgbmjhuqV0JywgdmFsdWU6ICdsYXRlc3QnIH0KICAgICAgICBd
+LAogICAgICAgIGNhdGVnb3J5OiBbCiAgICAgICAgICAgIHsgbmFtZTogIlhJVVJFTiIsIHZhbHVl
+OiAieGl1cmVuIiB9LAogICAgICAgICAgICB7IG5hbWU6ICJYaWFvWXUiLCB2YWx1ZTogInhpYW95
+dSIgfSwKICAgICAgICAgICAgeyBuYW1lOiAiWGluZ1lhbiIsIHZhbHVlOiAieGluZ3lhbiIgfSwK
+ICAgICAgICAgICAgeyBuYW1lOiAiTXlHaXJsIiwgdmFsdWU6ICJteWdpcmwiIH0sCiAgICAgICAg
+ICAgIHsgbmFtZTogIk1GU3RhciIsIHZhbHVlOiAibWZzdGFyIiB9CiAgICAgICAgXQogICAgfSk7
+Cn0KCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFVSTCBHRU5FUkFUSU9OCi8vID09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09CgpmdW5jdGlvbiBnZXRVcmxMaXN0KHNsdWcsIGZpbHRlcnNKc29uKSB7CiAg
+ICB2YXIgZmlsdGVycyA9IEpTT04ucGFyc2UoZmlsdGVyc0pzb24gfHwgInt9Iik7CiAgICB2YXIg
+cGFnZSA9IGZpbHRlcnMucGFnZSB8fCAxOwogICAgdmFyIGJhc2VVcmwgPSAiaHR0cHM6Ly9taXNz
+a29uLmNvbSI7CgogICAgdmFyIHBhdGggPSAiIjsKICAgIGlmIChmaWx0ZXJzLmNhdGVnb3J5KSB7
+CiAgICAgICAgcGF0aCA9ICIvdGFnLyIgKyBmaWx0ZXJzLmNhdGVnb3J5OwogICAgfSBlbHNlIGlm
+IChzbHVnKSB7CiAgICAgICAgcGF0aCA9ICIvIiArIHNsdWc7CiAgICB9CgogICAgaWYgKHBhZ2Ug
+PiAxKSB7CiAgICAgICAgcmV0dXJuIGJhc2VVcmwgKyBwYXRoICsgIi9wYWdlLyIgKyBwYWdlICsg
+Ii8iOwogICAgfQogICAgcmV0dXJuIGJhc2VVcmwgKyBwYXRoICsgIi8iOwp9CgpmdW5jdGlvbiBn
+ZXRVcmxTZWFyY2goa2V5d29yZCwgZmlsdGVyc0pzb24pIHsKICAgIHZhciBmaWx0ZXJzID0gSlNP
+Ti5wYXJzZShmaWx0ZXJzSnNvbiB8fCAie30iKTsKICAgIHZhciBwYWdlID0gZmlsdGVycy5wYWdl
+IHx8IDE7CiAgICBpZiAocGFnZSA+IDEpIHsKICAgICAgICByZXR1cm4gImh0dHBzOi8vbWlzc2tv
+bi5jb20vcGFnZS8iICsgcGFnZSArICIvP3M9IiArIGVuY29kZVVSSUNvbXBvbmVudChrZXl3b3Jk
+KTsKICAgIH0KICAgIHJldHVybiAiaHR0cHM6Ly9taXNza29uLmNvbS8/cz0iICsgZW5jb2RlVVJJ
+Q29tcG9uZW50KGtleXdvcmQpOwp9CgpmdW5jdGlvbiBnZXRVcmxEZXRhaWwoc2x1ZykgewogICAg
+aWYgKCFzbHVnKSByZXR1cm4gIiI7CiAgICBpZiAoc2x1Zy5pbmRleE9mKCJodHRwIikgPT09IDAp
+IHJldHVybiBzbHVnOwogICAgcmV0dXJuICJodHRwczovL21pc3Nrb24uY29tLyIgKyBzbHVnICsg
+Ii8iOwp9CgpmdW5jdGlvbiBnZXRVcmxDYXRlZ29yaWVzKCkgeyByZXR1cm4gImh0dHBzOi8vbWlz
+c2tvbi5jb20vIjsgfQpmdW5jdGlvbiBnZXRVcmxDb3VudHJpZXMoKSB7IHJldHVybiAiIjsgfQpm
+dW5jdGlvbiBnZXRVcmxZZWFycygpIHsgcmV0dXJuICIiOyB9CgovLyA9PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PQovLyBVVElMUwovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKdmFyIFBsdWdpblV0aWxzID0g
+ewogICAgY2xlYW5UZXh0OiBmdW5jdGlvbiAodGV4dCkgewogICAgICAgIGlmICghdGV4dCkgcmV0
+dXJuICIiOwogICAgICAgIHJldHVybiB0ZXh0LnJlcGxhY2UoLzxbXj5dKj4vZywgIiIpCiAgICAg
+ICAgICAgIC5yZXBsYWNlKC8mYW1wOy9nLCAiJiIpCiAgICAgICAgICAgIC5yZXBsYWNlKC8mcXVv
+dDsvZywgJyInKQogICAgICAgICAgICAucmVwbGFjZSgvJiMwMzk7L2csICInIikKICAgICAgICAg
+ICAgLnJlcGxhY2UoLyZsdDsvZywgIjwiKQogICAgICAgICAgICAucmVwbGFjZSgvJmd0Oy9nLCAi
+PiIpCiAgICAgICAgICAgIC5yZXBsYWNlKC9ccysvZywgIiAiKQogICAgICAgICAgICAudHJpbSgp
+OwogICAgfQp9OwoKLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KLy8gUEFSU0VSUwovLyA9PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PQoKZnVuY3Rpb24gcGFyc2VMaXN0UmVzcG9uc2UoaHRtbCkgewogICAgdmFy
+IGl0ZW1zID0gW107CiAgICB2YXIgZm91bmRTbHVncyA9IHt9OwoKICAgIC8vIFNhaGlmYS9UaWVM
+YWJzIGl0ZW0gc3RydWN0dXJlOiBhcnRpY2xlLml0ZW0tbGlzdAogICAgdmFyIGl0ZW1SZWdleCA9
+IC88YXJ0aWNsZVtePl0qY2xhc3M9IlteIl0qaXRlbS1saXN0W14iXSoiW14+XSo+KFtcc1xTXSo/
+KTxcL2FydGljbGU+L2dpOwogICAgdmFyIG1hdGNoOwoKICAgIHdoaWxlICgobWF0Y2ggPSBpdGVt
+UmVnZXguZXhlYyhodG1sKSkgIT09IG51bGwpIHsKICAgICAgICB2YXIgaXRlbUh0bWwgPSBtYXRj
+aFsxXTsKCiAgICAgICAgLy8gRXh0cmFjdCBMaW5rIGFuZCBTbHVnCiAgICAgICAgdmFyIGxpbmtN
+YXRjaCA9IGl0ZW1IdG1sLm1hdGNoKC88aDJbXj5dKmNsYXNzPSJbXiJdKnBvc3QtYm94LXRpdGxl
+W14iXSoiW14+XSo+XHMqPGFbXj5dK2hyZWY9Imh0dHBzPzpcL1wvbWlzc2tvblwuY29tXC8oW14i
+XC9dKylcLz8iL2kpIHx8CiAgICAgICAgICAgIGl0ZW1IdG1sLm1hdGNoKC88ZGl2W14+XSpjbGFz
+cz0icG9zdC10aHVtYm5haWwiW14+XSo+XHMqPGFbXj5dK2hyZWY9Imh0dHBzPzpcL1wvbWlzc2tv
+blwuY29tXC8oW14iXC9dKylcLz8iL2kpOwogICAgICAgIGlmICghbGlua01hdGNoKSBjb250aW51
+ZTsKCiAgICAgICAgdmFyIHNsdWcgPSBsaW5rTWF0Y2hbMV07CiAgICAgICAgdmFyIHRpdGxlID0g
+IiI7CiAgICAgICAgdmFyIHRpdGxlTSA9IGl0ZW1IdG1sLm1hdGNoKC88aDJbXj5dKmNsYXNzPSJb
+XiJdKnBvc3QtYm94LXRpdGxlW14iXSoiW14+XSo+XHMqPGFbXj5dKj4oW1xzXFNdKj8pPFwvYT4v
+aSk7CiAgICAgICAgaWYgKHRpdGxlTSkgdGl0bGUgPSBQbHVnaW5VdGlscy5jbGVhblRleHQodGl0
+bGVNWzFdKTsKCiAgICAgICAgdmFyIHRodW1iID0gIiI7CiAgICAgICAgdmFyIHRodW1iTSA9IGl0
+ZW1IdG1sLm1hdGNoKC88aW1nW14+XStkYXRhLXNyYz0iKFteIl0rKSIvaSkgfHwKICAgICAgICAg
+ICAgaXRlbUh0bWwubWF0Y2goLzxpbWdbXj5dK3NyYz0iKFteIl0rKSIvaSk7CiAgICAgICAgaWYg
+KHRodW1iTSkgewogICAgICAgICAgICB0aHVtYiA9IHRodW1iTVsxXTsKICAgICAgICAgICAgLy8g
+SWYgdGh1bWIgaXMgYW4gU1ZHIHBsYWNlaG9sZGVyLCBpZ25vcmUgaXQgYW5kIGxvb2sgZm9yIGRh
+dGEtc3JjCiAgICAgICAgICAgIGlmICh0aHVtYi5pbmRleE9mKCJkYXRhOmltYWdlL3N2Zyt4bWwi
+KSAhPT0gLTEpIHsKICAgICAgICAgICAgICAgIHZhciBkYXRhU3JjTSA9IGl0ZW1IdG1sLm1hdGNo
+KC9kYXRhLXNyYz0iKFteIl0rKSIvaSk7CiAgICAgICAgICAgICAgICBpZiAoZGF0YVNyY00pIHRo
+dW1iID0gZGF0YVNyY01bMV07CiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIGlmIChz
+bHVnICYmICFmb3VuZFNsdWdzW3NsdWddKSB7CiAgICAgICAgICAgIGl0ZW1zLnB1c2goewogICAg
+ICAgICAgICAgICAgaWQ6IHNsdWcsCiAgICAgICAgICAgICAgICB0aXRsZTogdGl0bGUsCiAgICAg
+ICAgICAgICAgICBwb3N0ZXJVcmw6IHRodW1iLAogICAgICAgICAgICAgICAgYmFja2Ryb3BVcmw6
+IHRodW1iLAogICAgICAgICAgICAgICAgZGVzY3JpcHRpb246ICIiLAogICAgICAgICAgICAgICAg
+ZXBpc29kZV9jdXJyZW50OiAiR2FsbGVyeSIsCiAgICAgICAgICAgICAgICBxdWFsaXR5OiAiSEQi
+LAogICAgICAgICAgICAgICAgbGFuZzogIkNoaW5hIgogICAgICAgICAgICB9KTsKICAgICAgICAg
+ICAgZm91bmRTbHVnc1tzbHVnXSA9IHRydWU7CiAgICAgICAgfQogICAgfQoKICAgIC8vIFBhZ2lu
+YXRpb24KICAgIHZhciB0b3RhbFBhZ2VzID0gMTsKICAgIHZhciBjdXJyZW50UGFnZSA9IDE7Cgog
+ICAgdmFyIGN1cnJlbnRNYXRjaCA9IGh0bWwubWF0Y2goLzxzcGFuW14+XSpjbGFzcz0iY3VycmVu
+dCJbXj5dKj4oXGQrKTxcL3NwYW4+L2kpOwogICAgaWYgKGN1cnJlbnRNYXRjaCkgY3VycmVudFBh
+Z2UgPSBwYXJzZUludChjdXJyZW50TWF0Y2hbMV0pOwoKICAgIHZhciBwYWdlUmVnZXggPSAvY2xh
+c3M9InBhZ2UiW14+XSo+KFxkKyk8XC9hPi9nOwogICAgdmFyIHBNYXRjaDsKICAgIHdoaWxlICgo
+cE1hdGNoID0gcGFnZVJlZ2V4LmV4ZWMoaHRtbCkpICE9PSBudWxsKSB7CiAgICAgICAgdmFyIHAg
+PSBwYXJzZUludChwTWF0Y2hbMV0pOwogICAgICAgIGlmIChwID4gdG90YWxQYWdlcykgdG90YWxQ
+YWdlcyA9IHA7CiAgICB9CgogICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KHsKICAgICAgICBpdGVt
+czogaXRlbXMsCiAgICAgICAgcGFnaW5hdGlvbjogewogICAgICAgICAgICBjdXJyZW50UGFnZTog
+Y3VycmVudFBhZ2UsCiAgICAgICAgICAgIHRvdGFsUGFnZXM6IHRvdGFsUGFnZXMsCiAgICAgICAg
+ICAgIHRvdGFsSXRlbXM6IGl0ZW1zLmxlbmd0aCAqIHRvdGFsUGFnZXMsCiAgICAgICAgICAgIGl0
+ZW1zUGVyUGFnZTogaXRlbXMubGVuZ3RoCiAgICAgICAgfQogICAgfSk7Cn0KCmZ1bmN0aW9uIHBh
+cnNlU2VhcmNoUmVzcG9uc2UoaHRtbCkgewogICAgcmV0dXJuIHBhcnNlTGlzdFJlc3BvbnNlKGh0
+bWwpOwp9CgpmdW5jdGlvbiBwYXJzZU1vdmllRGV0YWlsKGh0bWwpIHsKICAgIHRyeSB7CiAgICAg
+ICAgdmFyIHRpdGxlTWF0Y2ggPSBodG1sLm1hdGNoKC88aDFbXj5dKmNsYXNzPSJuYW1lIHBvc3Qt
+dGl0bGUgZW50cnktdGl0bGUiW14+XSo+KFtcc1xTXSo/KTxcL2gxPi9pKSB8fAogICAgICAgICAg
+ICBodG1sLm1hdGNoKC88aDFbXj5dKj4oW1xzXFNdKj8pPFwvaDE+L2kpOwogICAgICAgIHZhciB0
+aXRsZSA9IHRpdGxlTWF0Y2ggPyBQbHVnaW5VdGlscy5jbGVhblRleHQodGl0bGVNYXRjaFsxXSkg
+OiAiIjsKCiAgICAgICAgdmFyIHBvc3RlciA9ICIiOwogICAgICAgIC8vIFRyeSBvZzppbWFnZQog
+ICAgICAgIHZhciBvZ01hdGNoID0gaHRtbC5tYXRjaCgvPG1ldGEgcHJvcGVydHk9Im9nOmltYWdl
+IiBjb250ZW50PSIoW14iXSspIi9pKTsKICAgICAgICBpZiAob2dNYXRjaCkgewogICAgICAgICAg
+ICBwb3N0ZXIgPSBvZ01hdGNoWzFdOwogICAgICAgIH0gZWxzZSB7CiAgICAgICAgICAgIC8vIFRy
+eSB0d2l0dGVyOmltYWdlCiAgICAgICAgICAgIHZhciB0d01hdGNoID0gaHRtbC5tYXRjaCgvPG1l
+dGEgbmFtZT0idHdpdHRlcjppbWFnZSIgY29udGVudD0iKFteIl0rKSIvaSk7CiAgICAgICAgICAg
+IGlmICh0d01hdGNoKSB7CiAgICAgICAgICAgICAgICBwb3N0ZXIgPSB0d01hdGNoWzFdOwogICAg
+ICAgICAgICB9IGVsc2UgewogICAgICAgICAgICAgICAgLy8gVHJ5IHRvIGZpbmQgaW4gTEQrSlNP
+TiBvciBzY2hlbWEKICAgICAgICAgICAgICAgIHZhciBzY2hlbWFNYXRjaCA9IGh0bWwubWF0Y2go
+LyJpbWFnZSI6XHMqXHtccyoiQHR5cGUiOlxzKiJJbWFnZU9iamVjdCIsXHMqInVybCI6XHMqIihb
+XiJdKykiL2kpIHx8CiAgICAgICAgICAgICAgICAgICAgaHRtbC5tYXRjaCgvImltYWdlIjpccyoi
+KFteIl0rKSIvaSk7CiAgICAgICAgICAgICAgICBpZiAoc2NoZW1hTWF0Y2gpIHsKICAgICAgICAg
+ICAgICAgICAgICBwb3N0ZXIgPSBzY2hlbWFNYXRjaFsxXS5yZXBsYWNlKC9cXC9nLCAiIik7CiAg
+ICAgICAgICAgICAgICB9IGVsc2UgewogICAgICAgICAgICAgICAgICAgIC8vIEZpbmFsIGZhbGxi
+YWNrOiB1c2UgdGhlIGZpcnN0IGNvbnRlbnQgaW1hZ2UgZnJvbSB0aGUgd2hvbGUgcGFnZQogICAg
+ICAgICAgICAgICAgICAgIHZhciBmaXJzdEltZ01hdGNoID0gaHRtbC5tYXRjaCgvPGltZ1tePl0r
+KD86ZGF0YS1zcmN8c3JjKT0iKFteIl0rKD86bWlzc2tvblwuY29tXC91cGxvYWRzfFwvbWVkaWFc
+L3xwb2tcLm1pc3Nrb25cLmNvbSlbXiJdKykiL2kpOwogICAgICAgICAgICAgICAgICAgIGlmIChm
+aXJzdEltZ01hdGNoKSBwb3N0ZXIgPSBmaXJzdEltZ01hdGNoWzFdOwogICAgICAgICAgICAgICAg
+fQogICAgICAgICAgICB9CiAgICAgICAgfQoKICAgICAgICAvLyBDaGFwdGVycyAtIGhhbmRsZSBw
+b3N0IHBhZ2luYXRpb24KICAgICAgICB2YXIgY2hhbm5lbHMgPSBbXTsKICAgICAgICAvLyBQYWdl
+IDEKICAgICAgICB2YXIgY3VycmVudFVybE0gPSBodG1sLm1hdGNoKC88bGluayByZWw9ImNhbm9u
+aWNhbCIgaHJlZj0iKFteIl0rKSIvaSk7CiAgICAgICAgdmFyIGJhc2VVcmwgPSBjdXJyZW50VXJs
+TSA/IGN1cnJlbnRVcmxNWzFdLnJlcGxhY2UoL1wvJC8sICIiKSA6ICIiOwoKICAgICAgICAvLyBG
+aW5kIG90aGVyIHBhZ2VzCiAgICAgICAgdmFyIHBhZ2VzID0gW3sgaWQ6IGJhc2VVcmwgKyAiLyIs
+IG5hbWU6ICJUcmFuZyAxIiwgc2x1ZzogIjEiIH1dOwogICAgICAgIHZhciBwYWdlUmVnZXggPSAv
+PGFbXj5dK2hyZWY9IihbXiJdKykiW14+XSpjbGFzcz0icG9zdC1wYWdlLW51bWJlcnMiW14+XSo+
+KFxkKyk8XC9hPi9naTsKICAgICAgICB2YXIgcG07CiAgICAgICAgdmFyIHNlZW5QYWdlcyA9IHsg
+IjEiOiB0cnVlIH07CgogICAgICAgIHdoaWxlICgocG0gPSBwYWdlUmVnZXguZXhlYyhodG1sKSkg
+IT09IG51bGwpIHsKICAgICAgICAgICAgdmFyIHBVcmwgPSBwbVsxXTsKICAgICAgICAgICAgdmFy
+IHBOdW0gPSBwbVsyXTsKICAgICAgICAgICAgaWYgKCFzZWVuUGFnZXNbcE51bV0pIHsKICAgICAg
+ICAgICAgICAgIHBhZ2VzLnB1c2goewogICAgICAgICAgICAgICAgICAgIGlkOiBwVXJsLAogICAg
+ICAgICAgICAgICAgICAgIG5hbWU6ICJUcmFuZyAiICsgcE51bSwKICAgICAgICAgICAgICAgICAg
+ICBzbHVnOiBwTnVtCiAgICAgICAgICAgICAgICB9KTsKICAgICAgICAgICAgICAgIHNlZW5QYWdl
+c1twTnVtXSA9IHRydWU7CiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIC8vIFNvcnQg
+cGFnZXMganVzdCBpbiBjYXNlCiAgICAgICAgcGFnZXMuc29ydChmdW5jdGlvbiAoYSwgYikgeyBy
+ZXR1cm4gcGFyc2VJbnQoYS5zbHVnKSAtIHBhcnNlSW50KGIuc2x1Zyk7IH0pOwoKICAgICAgICB2
+YXIgc2VydmVycyA9IFt7CiAgICAgICAgICAgIG5hbWU6ICJEZWZhdWx0IiwKICAgICAgICAgICAg
+ZXBpc29kZXM6IHBhZ2VzCiAgICAgICAgfV07CgogICAgICAgIHJldHVybiBKU09OLnN0cmluZ2lm
+eSh7CiAgICAgICAgICAgIGlkOiAiIiwKICAgICAgICAgICAgdGl0bGU6IHRpdGxlLAogICAgICAg
+ICAgICBwb3N0ZXJVcmw6IHBvc3RlciwKICAgICAgICAgICAgYmFja2Ryb3BVcmw6IHBvc3RlciwK
+ICAgICAgICAgICAgZGVzY3JpcHRpb246ICIiLAogICAgICAgICAgICBzZXJ2ZXJzOiBzZXJ2ZXJz
+LAogICAgICAgICAgICBjYXRlZ29yeTogIkdhbGxlcnksIE1vZGVsIiwKICAgICAgICAgICAgc3Rh
+dHVzOiAiVGjDoG5oIGPDtG5nIiwKICAgICAgICAgICAgcXVhbGl0eTogIkhEIiwKICAgICAgICAg
+ICAgbGFuZzogIkNoaW5hIgogICAgICAgIH0pOwoKICAgIH0gY2F0Y2ggKGUpIHsKICAgICAgICBy
+ZXR1cm4gIm51bGwiOwogICAgfQp9CgpmdW5jdGlvbiBwYXJzZURldGFpbFJlc3BvbnNlKGh0bWwp
+IHsKICAgIHRyeSB7CiAgICAgICAgdmFyIGltYWdlcyA9IFtdOwoKICAgICAgICAvLyAxLiBUYXJn
+ZXQgdGhlIG1haW4gYXJ0aWNsZSBibG9jawogICAgICAgIHZhciBhcnRpY2xlTWF0Y2ggPSBodG1s
+Lm1hdGNoKC88YXJ0aWNsZVtePl0qaWQ9InRoZS1wb3N0IltePl0qPihbXHNcU10qPyk8XC9hcnRp
+Y2xlPi9pKTsKICAgICAgICB2YXIgY29udGVudEh0bWwgPSBhcnRpY2xlTWF0Y2ggPyBhcnRpY2xl
+TWF0Y2hbMV0gOiBodG1sOwoKICAgICAgICAvLyAyLiBSZW1vdmUgWUFSUFAgKHJlbGF0ZWQgcG9z
+dHMpIHNlY3Rpb24KICAgICAgICBjb250ZW50SHRtbCA9IGNvbnRlbnRIdG1sLnJlcGxhY2UoLzxk
+aXZbXj5dKmNsYXNzPSJbXiJdKnlhcnBwLXJlbGF0ZWRbXiJdKiJbXj5dKj4oW1xzXFNdKj8pPFwv
+ZGl2PlxzKjxcL2Rpdj4vZ2ksICIiKTsKICAgICAgICBjb250ZW50SHRtbCA9IGNvbnRlbnRIdG1s
+LnJlcGxhY2UoLzxkaXZbXj5dKmNsYXNzPSJbXiJdKnlhcnBwLXJlbGF0ZWRbXiJdKiJbXj5dKj4o
+W1xzXFNdKj8pPFwvZGl2Pi9naSwgIiIpOwoKICAgICAgICAvLyAzLiBTY2FuIGZvciBjb250ZW50
+IGltYWdlcyBpbiB0aGUgZmlsdGVyZWQgYmxvY2sKICAgICAgICB2YXIgaW1nVGFnUmVnZXggPSAv
+PGltZ1tePl0rPi9naTsKICAgICAgICB2YXIgdGFnTWF0Y2g7CiAgICAgICAgd2hpbGUgKCh0YWdN
+YXRjaCA9IGltZ1RhZ1JlZ2V4LmV4ZWMoY29udGVudEh0bWwpKSAhPT0gbnVsbCkgewogICAgICAg
+ICAgICB2YXIgdGFnSHRtbCA9IHRhZ01hdGNoWzBdOwoKICAgICAgICAgICAgLy8gUHJpb3JpdGl6
+ZSBkYXRhLXNyYyBvdmVyIHNyYyBmb3IgbGF6eWxvYWQKICAgICAgICAgICAgdmFyIHVybE1hdGNo
+ID0gdGFnSHRtbC5tYXRjaCgvZGF0YS1zcmM9IihbXiJdKykiL2kpIHx8IHRhZ0h0bWwubWF0Y2go
+L3NyYz0iKFteIl0rKSIvaSk7CiAgICAgICAgICAgIGlmICh1cmxNYXRjaCkgewogICAgICAgICAg
+ICAgICAgdmFyIHVybCA9IHVybE1hdGNoWzFdOwoKICAgICAgICAgICAgICAgIC8vIENvbnRlbnQg
+aW1hZ2VzIG9uIE1pc3NLb24gdXN1YWxseSByZXNpZGUgaW4gcG9rLm1pc3Nrb24uY29tLCBjZG4s
+IHVwbG9hZHMsIG9yIC9tZWRpYS8KICAgICAgICAgICAgICAgIHZhciBpc0NvbnRlbnRJbWcgPSB1
+cmwuaW5kZXhPZigibWlzc2tvbi5jb20iKSAhPT0gLTEgfHwKICAgICAgICAgICAgICAgICAgICB1
+cmwuaW5kZXhPZigiL21lZGlhLyIpICE9PSAtMSB8fAogICAgICAgICAgICAgICAgICAgIHVybC5p
+bmRleE9mKCIvdXBsb2Fkcy8iKSAhPT0gLTE7CgogICAgICAgICAgICAgICAgLy8gRXhjbHVkZSBv
+YnZpb3VzIG5vbi1jb250ZW50IGltYWdlcwogICAgICAgICAgICAgICAgdmFyIGlzR2FyYmFnZSA9
+IHVybC5pbmRleE9mKCJkYXRhOmltYWdlL3N2Zyt4bWwiKSAhPT0gLTEgfHwKICAgICAgICAgICAg
+ICAgICAgICB1cmwuaW5kZXhPZigibWlzc2tvbi5pY28iKSAhPT0gLTEgfHwKICAgICAgICAgICAg
+ICAgICAgICB1cmwuaW5kZXhPZigiL2Fkcy8iKSAhPT0gLTEgfHwKICAgICAgICAgICAgICAgICAg
+ICB1cmwuaW5kZXhPZigiYWQtcHJvdmlkZXIiKSAhPT0gLTEgfHwKICAgICAgICAgICAgICAgICAg
+ICB1cmwuaW5kZXhPZigiZ3JhdmF0YXIiKSAhPT0gLTEgfHwKICAgICAgICAgICAgICAgICAgICB1
+cmwuaW5kZXhPZigibG9nby4yMDI2IikgIT09IC0xOwoKICAgICAgICAgICAgICAgIGlmIChpc0Nv
+bnRlbnRJbWcgJiYgIWlzR2FyYmFnZSkgewogICAgICAgICAgICAgICAgICAgIGlmIChpbWFnZXMu
+aW5kZXhPZih1cmwpID09PSAtMSkgewogICAgICAgICAgICAgICAgICAgICAgICBpbWFnZXMucHVz
+aCh1cmwpOwogICAgICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIH0KICAgICAgICAg
+ICAgfQogICAgICAgIH0KCiAgICAgICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KHsKICAgICAgICAg
+ICAgaW1hZ2VzOiBpbWFnZXMsCiAgICAgICAgICAgIGhlYWRlcnM6IHsKICAgICAgICAgICAgICAg
+ICJVc2VyLUFnZW50IjogIk1vemlsbGEvNS4wIChXaW5kb3dzIE5UIDEwLjA7IFdpbjY0OyB4NjQp
+IEFwcGxlV2ViS2l0LzUzNy4zNiAoS0hUTUwsIGxpa2UgR2Vja28pIENocm9tZS8xMjAuMC4wLjAg
+U2FmYXJpLzUzNy4zNiIsCiAgICAgICAgICAgICAgICAiUmVmZXJlciI6ICJodHRwczovL21pc3Nr
+b24uY29tLyIKICAgICAgICAgICAgfQogICAgICAgIH0pOwogICAgfSBjYXRjaCAoZSkgewogICAg
+ICAgIHJldHVybiAie30iOwogICAgfQp9CgpmdW5jdGlvbiBwYXJzZUNhdGVnb3JpZXNSZXNwb25z
+ZShodG1sKSB7CiAgICByZXR1cm4gSlNPTi5zdHJpbmdpZnkoWwogICAgICAgIHsgbmFtZTogJ1hJ
+VVJFTicsIHNsdWc6ICd0YWcveGl1cmVuJyB9LAogICAgICAgIHsgbmFtZTogJ1hpYW9ZdScsIHNs
+dWc6ICd0YWcveGlhb3l1JyB9LAogICAgICAgIHsgbmFtZTogJ1hpbmdZYW4nLCBzbHVnOiAndGFn
+L3hpbmd5YW4nIH0sCiAgICAgICAgeyBuYW1lOiAnTUZTdGFyJywgc2x1ZzogJ3RhZy9tZnN0YXIn
+IH0sCiAgICAgICAgeyBuYW1lOiAnTXlHaXJsJywgc2x1ZzogJ3RhZy9teWdpcmwnIH0KICAgIF0p
+Owp9CgpmdW5jdGlvbiBwYXJzZUNvdW50cmllc1Jlc3BvbnNlKGh0bWwpIHsgcmV0dXJuICJbXSI7
+IH0KZnVuY3Rpb24gcGFyc2VZZWFyc1Jlc3BvbnNlKGh0bWwpIHsgcmV0dXJuICJbXSI7IH0K

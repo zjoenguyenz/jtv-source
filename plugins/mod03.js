@@ -1,341 +1,229 @@
-// =============================================================================
-// CONFIGURATION & METADATA
-// =============================================================================
-
-function getManifest() {
-    return JSON.stringify({
-        "id": "avdbapi",
-        "name": "AVDB JAV",
-        "version": "1.0.4",
-        "baseUrl": "https://avdbapi.com/api.php/provide/vod",
-        "iconUrl": "https://avdbapi.com/favicon.ico",
-        "isEnabled": true,
-        "isAdult": true,
-        "type": "VIDEO",
-        "layoutType": "HORIZONTAL",
-        "playerType": "embed"
-    });
-}
-
-function getHomeSections() {
-    return JSON.stringify([
-        { slug: '1', title: 'Censored', type: 'Horizontal', path: 'category' },
-        { slug: '2', title: 'Uncensored', type: 'Horizontal', path: 'category' },
-        { slug: '3', title: 'Uncensored Leaked', type: 'Horizontal', path: 'category' },
-        { slug: '4', title: 'Amateur', type: 'Horizontal', path: 'category' },
-        { slug: '5', title: 'Chinese AV', type: 'Horizontal', path: 'category' },
-        { slug: '6', title: 'Western', type: 'Horizontal', path: 'category' },
-        { slug: 'latest', title: 'Mới Cập Nhật', type: 'Grid', path: 'latest' }
-    ]);
-}
-
-function getPrimaryCategories() {
-    return JSON.stringify([
-        { name: 'Censored', slug: '1' },
-        { name: 'Uncensored', slug: '2' },
-        { name: 'Uncensored Leaked', slug: '3' },
-        { name: 'Amateur', slug: '4' },
-        { name: 'Chinese AV', slug: '5' },
-        { name: 'Western', slug: '6' }
-    ]);
-}
-
-function getFilterConfig() {
-    return JSON.stringify({
-        sort: [
-            { name: 'Mới nhất', value: 'desc' },
-            { name: 'Cũ nhất', value: 'asc' }
-        ]
-    });
-}
-
-// =============================================================================
-// URL GENERATION
-// =============================================================================
-
-var BASE_API = "https://avdbapi.com/api.php/provide/vod";
-
-function getUrlList(slug, filtersJson) {
-    try {
-        var filters = JSON.parse(filtersJson || "{}");
-        var page = filters.page || 1;
-        var url = BASE_API + "?ac=detail&pg=" + page + "&pagesize=24";
-
-        if (/^[1-6]$/.test(slug)) {
-            url += "&t=" + slug;
-        } else if (slug === 'latest') {
-            // Mới cập nhật - default sort
-        } else if (filters.category) {
-            url += "&t=" + filters.category;
-        }
-
-        if (filters.year) url += "&year=" + filters.year;
-        if (filters.sort) url += "&sort_direction=" + filters.sort;
-
-        return url;
-    } catch (e) {
-        return BASE_API + "?ac=detail&pg=1&pagesize=24";
-    }
-}
-
-function getUrlSearch(keyword, filtersJson) {
-    var filters = JSON.parse(filtersJson || "{}");
-    var page = filters.page || 1;
-    return BASE_API + "?ac=detail&wd=" + encodeURIComponent(keyword) + "&pg=" + page + "&pagesize=24";
-}
-
-// getUrlDetail nhận episodeId (chính là embed URL upload18)
-// App sẽ fetch URL này → nhận HTML embed → truyền vào parseDetailResponse
-function getUrlDetail(episodeId) {
-    // episodeId = "https://upload18.org/play/index/xxx" (embed URL)
-    // Trả về chính embed URL để app fetch HTML
-    if (episodeId.indexOf("http") === 0) {
-        return episodeId;
-    }
-    // Nếu là numeric id → dùng ids= parameter (chính xác nhất)
-    if (/^\d+$/.test(episodeId)) {
-        return BASE_API + "?ac=detail&ids=" + episodeId;
-    }
-    // Fallback: nếu là slug thì dùng code= parameter (tìm theo mã phim)
-    return BASE_API + "?ac=detail&code=" + encodeURIComponent(episodeId) + "&pagesize=1";
-}
-
-function getUrlCategories() { return ""; }
-function getUrlCountries() { return ""; }
-function getUrlYears() { return ""; }
-
-// =============================================================================
-// PARSERS
-// =============================================================================
-
-function parseListResponse(apiResponseJson) {
-    try {
-        var response = JSON.parse(apiResponseJson);
-        var list = response.list || [];
-
-        var movies = list.map(function (item) {
-            return {
-                id: String(item.id || ""),  // Dùng numeric API id → getUrlDetail sẽ dùng ids= parameter
-                title: item.name || "",
-                posterUrl: item.poster_url || "",
-                backdropUrl: item.thumb_url || "",
-                year: parseInt(item.year) || 0,
-                quality: item.quality || "HD",
-                episode_current: item.status || "",
-                lang: item.movie_code || ""  // Hiện mã phim dưới title
-            };
-        });
-
-        var currentPage = parseInt(response.page) || 1;
-        var totalItems = parseInt(response.total) || 0;
-        var itemsPerPage = parseInt(response.limit) || 24;
-        var totalPages = parseInt(response.pagecount) || Math.ceil(totalItems / itemsPerPage);
-
-        return JSON.stringify({
-            items: movies,
-            pagination: {
-                currentPage: currentPage,
-                totalPages: totalPages,
-                totalItems: totalItems,
-                itemsPerPage: itemsPerPage
-            }
-        });
-    } catch (error) {
-        return JSON.stringify({ items: [], pagination: { currentPage: 1, totalPages: 1 } });
-    }
-}
-
-function parseSearchResponse(apiResponseJson) {
-    return parseListResponse(apiResponseJson);
-}
-
-function parseMovieDetail(apiResponseJson) {
-    try {
-        var response = JSON.parse(apiResponseJson);
-        var list = response.list || [];
-        if (list.length === 0) return "null";
-
-        var movie = list[0];
-
-        // Parse episodes từ cấu trúc AVDBAPI
-        // episodes: { server_name: "VIP #1", server_data: { "Full": { slug, link_embed } } }
-        var servers = [];
-        var eps = movie.episodes;
-        if (eps) {
-            var serverEpisodes = [];
-            var serverData = eps.server_data || {};
-
-            for (var epName in serverData) {
-                if (serverData.hasOwnProperty(epName)) {
-                    var epInfo = serverData[epName];
-                    var embedUrl = epInfo.link_embed || "";
-                    if (embedUrl) {
-                        // Episode ID = embed URL (upload18.org)
-                        // App sẽ dùng ID này gọi getStreamLink → getUrlDetail → fetch embed → parseDetailResponse
-                        serverEpisodes.push({
-                            id: embedUrl,
-                            name: epName,
-                            slug: epInfo.slug || epName.toLowerCase()
-                        });
-                    }
-                }
-            }
-
-            if (serverEpisodes.length > 0) {
-                servers.push({
-                    name: eps.server_name || "Server #1",
-                    episodes: serverEpisodes
-                });
-            }
-        }
-
-        var categories = Array.isArray(movie.category)
-            ? movie.category.join(", ")
-            : (movie.category || "");
-        var countries = Array.isArray(movie.country)
-            ? movie.country.join(", ")
-            : (movie.country || "");
-        var directors = Array.isArray(movie.director)
-            ? movie.director.filter(function (d) { return d !== "Updating"; }).join(", ")
-            : (movie.director || "");
-        var actors = Array.isArray(movie.actor)
-            ? movie.actor.filter(function (a) { return a !== "Updating"; }).join(", ")
-            : (movie.actor || "");
-
-        return JSON.stringify({
-            id: movie.slug || movie.movie_code || "",
-            title: movie.name || "",
-            originName: movie.origin_name || "",
-            posterUrl: movie.poster_url || "",
-            backdropUrl: movie.thumb_url || "",
-            description: (movie.description || "").replace(/<[^>]*>/g, ""),
-            year: parseInt(movie.year) || 0,
-            rating: 0,
-            quality: movie.quality || "HD",
-            duration: movie.time || "",
-            servers: servers,
-            episode_current: movie.status || "",
-            lang: "",
-            category: categories,
-            country: countries,
-            director: directors,
-            casts: actors,
-            status: movie.status || ""
-        });
-    } catch (error) { return "null"; }
-}
-
-// =============================================================================
-// STREAM LINK - parseDetailResponse
-// Nhận HTML từ embed upload18.org → trả isEmbed + url token_hash
-// =============================================================================
-
-function parseDetailResponse(embedHtml, pageUrl) {
-    try {
-        // Nếu response là m3u8 content → trả pageUrl để AVPlayer play trực tiếp
-        if (embedHtml.indexOf("#EXTM3U") !== -1 || embedHtml.indexOf("#EXT-X-") !== -1) {
-            return JSON.stringify({
-                url: pageUrl || "",
-                isEmbed: false,
-                headers: {
-                    "Referer": "https://upload18.org/",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-                },
-                subtitles: []
-            });
-        }
-
-        // Nếu là HTML embed page → trả isEmbed: true để iOS dùng WebView
-        // WebView sẽ render JWPlayer bên trong, tự xử lý m3u8 + Cloudflare cookies
-        if (embedHtml.indexOf("PLAYER_CONFIG") !== -1 || embedHtml.indexOf("jwplayer") !== -1) {
-            return JSON.stringify({
-                url: pageUrl || "",
-                isEmbed: true,
-                headers: {
-                    "Referer": "https://upload18.org/",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-                },
-                subtitles: []
-            });
-        }
-
-        // Fallback: tìm link m3u8 trực tiếp
-        var fallbackMatch = embedHtml.match(/["'](https?:\/\/[^"']+\.m3u8[^"']*?)["']/);
-        if (fallbackMatch) {
-            return JSON.stringify({
-                url: fallbackMatch[1],
-                isEmbed: false,
-                headers: { "Referer": "https://upload18.org/" },
-                subtitles: []
-            });
-        }
-
-        // Fallback cuối: trả embed URL cho WebView load trực tiếp
-        return JSON.stringify({
-            url: pageUrl || "",
-            isEmbed: true,
-            headers: {
-                "Referer": "https://upload18.org/",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            },
-            subtitles: []
-        });
-    } catch (error) { return "{}"; }
-}
-
-// =============================================================================
-// parseEmbedResponse - Nhận response từ token_hash endpoint
-// Response = m3u8 playlist text → ExoPlayer sẽ play trực tiếp từ URL
-// =============================================================================
-
-function parseEmbedResponse(m3u8Content, tokenUrl) {
-    try {
-        // tokenUrl = "https://upload18.org/play/token_hash?hash=xxx"
-        // m3u8Content = nội dung m3u8 playlist
-        // ExoPlayer cần URL, không phải content → trả tokenUrl là URL playable
-        if (m3u8Content.indexOf("#EXTM3U") !== -1 || m3u8Content.indexOf("#EXT-X-") !== -1) {
-            return JSON.stringify({
-                url: tokenUrl,
-                headers: {
-                    "Referer": "https://upload18.org/",
-                    "Block-Ads": "true",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-                },
-                subtitles: []
-            });
-        }
-
-        return "{}";
-    } catch (error) { return "{}"; }
-}
-
-// =============================================================================
-// CATEGORIES / COUNTRIES / YEARS
-// =============================================================================
-
-function parseCategoriesResponse(apiResponseJson) {
-    return JSON.stringify([
-        { name: "Censored", slug: "1" },
-        { name: "Uncensored", slug: "2" },
-        { name: "Uncensored Leaked", slug: "3" },
-        { name: "Amateur", slug: "4" },
-        { name: "Chinese AV", slug: "5" },
-        { name: "Western", slug: "6" }
-    ]);
-}
-
-function parseCountriesResponse(apiResponseJson) {
-    return JSON.stringify([
-        { name: "Japan", value: "japan" },
-        { name: "China", value: "china" },
-        { name: "Western", value: "western" }
-    ]);
-}
-
-function parseYearsResponse(apiResponseJson) {
-    var years = [];
-    for (var i = 2026; i >= 2010; i--) {
-        years.push({ name: i.toString(), value: i.toString() });
-    }
-    return JSON.stringify(years);
-}
+Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT0KLy8gQ09ORklHVVJBVElPTiAmIE1FVEFEQVRBCi8vID09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09CgpmdW5jdGlvbiBnZXRNYW5pZmVzdCgpIHsKICAgIHJldHVybiBK
+U09OLnN0cmluZ2lmeSh7CiAgICAgICAgImlkIjogImF2ZGJhcGkiLAogICAgICAgICJuYW1lIjog
+IkFWREIgSkFWIiwKICAgICAgICAidmVyc2lvbiI6ICIxLjAuNCIsCiAgICAgICAgImJhc2VVcmwi
+OiAiaHR0cHM6Ly9hdmRiYXBpLmNvbS9hcGkucGhwL3Byb3ZpZGUvdm9kIiwKICAgICAgICAiaWNv
+blVybCI6ICJodHRwczovL2F2ZGJhcGkuY29tL2Zhdmljb24uaWNvIiwKICAgICAgICAiaXNFbmFi
+bGVkIjogdHJ1ZSwKICAgICAgICAiaXNBZHVsdCI6IHRydWUsCiAgICAgICAgInR5cGUiOiAiVklE
+RU8iLAogICAgICAgICJsYXlvdXRUeXBlIjogIkhPUklaT05UQUwiLAogICAgICAgICJwbGF5ZXJU
+eXBlIjogImVtYmVkIgogICAgfSk7Cn0KCmZ1bmN0aW9uIGdldEhvbWVTZWN0aW9ucygpIHsKICAg
+IHJldHVybiBKU09OLnN0cmluZ2lmeShbCiAgICAgICAgeyBzbHVnOiAnMScsIHRpdGxlOiAnQ2Vu
+c29yZWQnLCB0eXBlOiAnSG9yaXpvbnRhbCcsIHBhdGg6ICdjYXRlZ29yeScgfSwKICAgICAgICB7
+IHNsdWc6ICcyJywgdGl0bGU6ICdVbmNlbnNvcmVkJywgdHlwZTogJ0hvcml6b250YWwnLCBwYXRo
+OiAnY2F0ZWdvcnknIH0sCiAgICAgICAgeyBzbHVnOiAnMycsIHRpdGxlOiAnVW5jZW5zb3JlZCBM
+ZWFrZWQnLCB0eXBlOiAnSG9yaXpvbnRhbCcsIHBhdGg6ICdjYXRlZ29yeScgfSwKICAgICAgICB7
+IHNsdWc6ICc0JywgdGl0bGU6ICdBbWF0ZXVyJywgdHlwZTogJ0hvcml6b250YWwnLCBwYXRoOiAn
+Y2F0ZWdvcnknIH0sCiAgICAgICAgeyBzbHVnOiAnNScsIHRpdGxlOiAnQ2hpbmVzZSBBVicsIHR5
+cGU6ICdIb3Jpem9udGFsJywgcGF0aDogJ2NhdGVnb3J5JyB9LAogICAgICAgIHsgc2x1ZzogJzYn
+LCB0aXRsZTogJ1dlc3Rlcm4nLCB0eXBlOiAnSG9yaXpvbnRhbCcsIHBhdGg6ICdjYXRlZ29yeScg
+fSwKICAgICAgICB7IHNsdWc6ICdsYXRlc3QnLCB0aXRsZTogJ03hu5tpIEPhuq1wIE5o4bqtdCcs
+IHR5cGU6ICdHcmlkJywgcGF0aDogJ2xhdGVzdCcgfQogICAgXSk7Cn0KCmZ1bmN0aW9uIGdldFBy
+aW1hcnlDYXRlZ29yaWVzKCkgewogICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KFsKICAgICAgICB7
+IG5hbWU6ICdDZW5zb3JlZCcsIHNsdWc6ICcxJyB9LAogICAgICAgIHsgbmFtZTogJ1VuY2Vuc29y
+ZWQnLCBzbHVnOiAnMicgfSwKICAgICAgICB7IG5hbWU6ICdVbmNlbnNvcmVkIExlYWtlZCcsIHNs
+dWc6ICczJyB9LAogICAgICAgIHsgbmFtZTogJ0FtYXRldXInLCBzbHVnOiAnNCcgfSwKICAgICAg
+ICB7IG5hbWU6ICdDaGluZXNlIEFWJywgc2x1ZzogJzUnIH0sCiAgICAgICAgeyBuYW1lOiAnV2Vz
+dGVybicsIHNsdWc6ICc2JyB9CiAgICBdKTsKfQoKZnVuY3Rpb24gZ2V0RmlsdGVyQ29uZmlnKCkg
+ewogICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KHsKICAgICAgICBzb3J0OiBbCiAgICAgICAgICAg
+IHsgbmFtZTogJ03hu5tpIG5o4bqldCcsIHZhbHVlOiAnZGVzYycgfSwKICAgICAgICAgICAgeyBu
+YW1lOiAnQ8WpIG5o4bqldCcsIHZhbHVlOiAnYXNjJyB9CiAgICAgICAgXQogICAgfSk7Cn0KCi8v
+ID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09Ci8vIFVSTCBHRU5FUkFUSU9OCi8vID09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09Cgp2YXIgQkFTRV9BUEkgPSAiaHR0cHM6Ly9hdmRiYXBpLmNvbS9hcGkucGhwL3Byb3Zp
+ZGUvdm9kIjsKCmZ1bmN0aW9uIGdldFVybExpc3Qoc2x1ZywgZmlsdGVyc0pzb24pIHsKICAgIHRy
+eSB7CiAgICAgICAgdmFyIGZpbHRlcnMgPSBKU09OLnBhcnNlKGZpbHRlcnNKc29uIHx8ICJ7fSIp
+OwogICAgICAgIHZhciBwYWdlID0gZmlsdGVycy5wYWdlIHx8IDE7CiAgICAgICAgdmFyIHVybCA9
+IEJBU0VfQVBJICsgIj9hYz1kZXRhaWwmcGc9IiArIHBhZ2UgKyAiJnBhZ2VzaXplPTI0IjsKCiAg
+ICAgICAgaWYgKC9eWzEtNl0kLy50ZXN0KHNsdWcpKSB7CiAgICAgICAgICAgIHVybCArPSAiJnQ9
+IiArIHNsdWc7CiAgICAgICAgfSBlbHNlIGlmIChzbHVnID09PSAnbGF0ZXN0JykgewogICAgICAg
+ICAgICAvLyBN4bubaSBj4bqtcCBuaOG6rXQgLSBkZWZhdWx0IHNvcnQKICAgICAgICB9IGVsc2Ug
+aWYgKGZpbHRlcnMuY2F0ZWdvcnkpIHsKICAgICAgICAgICAgdXJsICs9ICImdD0iICsgZmlsdGVy
+cy5jYXRlZ29yeTsKICAgICAgICB9CgogICAgICAgIGlmIChmaWx0ZXJzLnllYXIpIHVybCArPSAi
+JnllYXI9IiArIGZpbHRlcnMueWVhcjsKICAgICAgICBpZiAoZmlsdGVycy5zb3J0KSB1cmwgKz0g
+IiZzb3J0X2RpcmVjdGlvbj0iICsgZmlsdGVycy5zb3J0OwoKICAgICAgICByZXR1cm4gdXJsOwog
+ICAgfSBjYXRjaCAoZSkgewogICAgICAgIHJldHVybiBCQVNFX0FQSSArICI/YWM9ZGV0YWlsJnBn
+PTEmcGFnZXNpemU9MjQiOwogICAgfQp9CgpmdW5jdGlvbiBnZXRVcmxTZWFyY2goa2V5d29yZCwg
+ZmlsdGVyc0pzb24pIHsKICAgIHZhciBmaWx0ZXJzID0gSlNPTi5wYXJzZShmaWx0ZXJzSnNvbiB8
+fCAie30iKTsKICAgIHZhciBwYWdlID0gZmlsdGVycy5wYWdlIHx8IDE7CiAgICByZXR1cm4gQkFT
+RV9BUEkgKyAiP2FjPWRldGFpbCZ3ZD0iICsgZW5jb2RlVVJJQ29tcG9uZW50KGtleXdvcmQpICsg
+IiZwZz0iICsgcGFnZSArICImcGFnZXNpemU9MjQiOwp9CgovLyBnZXRVcmxEZXRhaWwgbmjhuq1u
+IGVwaXNvZGVJZCAoY2jDrW5oIGzDoCBlbWJlZCBVUkwgdXBsb2FkMTgpCi8vIEFwcCBz4bq9IGZl
+dGNoIFVSTCBuw6B5IOKGkiBuaOG6rW4gSFRNTCBlbWJlZCDihpIgdHJ1eeG7gW4gdsOgbyBwYXJz
+ZURldGFpbFJlc3BvbnNlCmZ1bmN0aW9uIGdldFVybERldGFpbChlcGlzb2RlSWQpIHsKICAgIC8v
+IGVwaXNvZGVJZCA9ICJodHRwczovL3VwbG9hZDE4Lm9yZy9wbGF5L2luZGV4L3h4eCIgKGVtYmVk
+IFVSTCkKICAgIC8vIFRy4bqjIHbhu4EgY2jDrW5oIGVtYmVkIFVSTCDEkeG7gyBhcHAgZmV0Y2gg
+SFRNTAogICAgaWYgKGVwaXNvZGVJZC5pbmRleE9mKCJodHRwIikgPT09IDApIHsKICAgICAgICBy
+ZXR1cm4gZXBpc29kZUlkOwogICAgfQogICAgLy8gTuG6v3UgbMOgIG51bWVyaWMgaWQg4oaSIGTD
+uW5nIGlkcz0gcGFyYW1ldGVyIChjaMOtbmggeMOhYyBuaOG6pXQpCiAgICBpZiAoL15cZCskLy50
+ZXN0KGVwaXNvZGVJZCkpIHsKICAgICAgICByZXR1cm4gQkFTRV9BUEkgKyAiP2FjPWRldGFpbCZp
+ZHM9IiArIGVwaXNvZGVJZDsKICAgIH0KICAgIC8vIEZhbGxiYWNrOiBu4bq/dSBsw6Agc2x1ZyB0
+aMOsIGTDuW5nIGNvZGU9IHBhcmFtZXRlciAodMOsbSB0aGVvIG3DoyBwaGltKQogICAgcmV0dXJu
+IEJBU0VfQVBJICsgIj9hYz1kZXRhaWwmY29kZT0iICsgZW5jb2RlVVJJQ29tcG9uZW50KGVwaXNv
+ZGVJZCkgKyAiJnBhZ2VzaXplPTEiOwp9CgpmdW5jdGlvbiBnZXRVcmxDYXRlZ29yaWVzKCkgeyBy
+ZXR1cm4gIiI7IH0KZnVuY3Rpb24gZ2V0VXJsQ291bnRyaWVzKCkgeyByZXR1cm4gIiI7IH0KZnVu
+Y3Rpb24gZ2V0VXJsWWVhcnMoKSB7IHJldHVybiAiIjsgfQoKLy8gPT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT0KLy8gUEFSU0VSUwovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKZnVuY3Rpb24gcGFyc2VMaXN0
+UmVzcG9uc2UoYXBpUmVzcG9uc2VKc29uKSB7CiAgICB0cnkgewogICAgICAgIHZhciByZXNwb25z
+ZSA9IEpTT04ucGFyc2UoYXBpUmVzcG9uc2VKc29uKTsKICAgICAgICB2YXIgbGlzdCA9IHJlc3Bv
+bnNlLmxpc3QgfHwgW107CgogICAgICAgIHZhciBtb3ZpZXMgPSBsaXN0Lm1hcChmdW5jdGlvbiAo
+aXRlbSkgewogICAgICAgICAgICByZXR1cm4gewogICAgICAgICAgICAgICAgaWQ6IFN0cmluZyhp
+dGVtLmlkIHx8ICIiKSwgIC8vIETDuW5nIG51bWVyaWMgQVBJIGlkIOKGkiBnZXRVcmxEZXRhaWwg
+c+G6vSBkw7luZyBpZHM9IHBhcmFtZXRlcgogICAgICAgICAgICAgICAgdGl0bGU6IGl0ZW0ubmFt
+ZSB8fCAiIiwKICAgICAgICAgICAgICAgIHBvc3RlclVybDogaXRlbS5wb3N0ZXJfdXJsIHx8ICIi
+LAogICAgICAgICAgICAgICAgYmFja2Ryb3BVcmw6IGl0ZW0udGh1bWJfdXJsIHx8ICIiLAogICAg
+ICAgICAgICAgICAgeWVhcjogcGFyc2VJbnQoaXRlbS55ZWFyKSB8fCAwLAogICAgICAgICAgICAg
+ICAgcXVhbGl0eTogaXRlbS5xdWFsaXR5IHx8ICJIRCIsCiAgICAgICAgICAgICAgICBlcGlzb2Rl
+X2N1cnJlbnQ6IGl0ZW0uc3RhdHVzIHx8ICIiLAogICAgICAgICAgICAgICAgbGFuZzogaXRlbS5t
+b3ZpZV9jb2RlIHx8ICIiICAvLyBIaeG7h24gbcOjIHBoaW0gZMaw4bubaSB0aXRsZQogICAgICAg
+ICAgICB9OwogICAgICAgIH0pOwoKICAgICAgICB2YXIgY3VycmVudFBhZ2UgPSBwYXJzZUludChy
+ZXNwb25zZS5wYWdlKSB8fCAxOwogICAgICAgIHZhciB0b3RhbEl0ZW1zID0gcGFyc2VJbnQocmVz
+cG9uc2UudG90YWwpIHx8IDA7CiAgICAgICAgdmFyIGl0ZW1zUGVyUGFnZSA9IHBhcnNlSW50KHJl
+c3BvbnNlLmxpbWl0KSB8fCAyNDsKICAgICAgICB2YXIgdG90YWxQYWdlcyA9IHBhcnNlSW50KHJl
+c3BvbnNlLnBhZ2Vjb3VudCkgfHwgTWF0aC5jZWlsKHRvdGFsSXRlbXMgLyBpdGVtc1BlclBhZ2Up
+OwoKICAgICAgICByZXR1cm4gSlNPTi5zdHJpbmdpZnkoewogICAgICAgICAgICBpdGVtczogbW92
+aWVzLAogICAgICAgICAgICBwYWdpbmF0aW9uOiB7CiAgICAgICAgICAgICAgICBjdXJyZW50UGFn
+ZTogY3VycmVudFBhZ2UsCiAgICAgICAgICAgICAgICB0b3RhbFBhZ2VzOiB0b3RhbFBhZ2VzLAog
+ICAgICAgICAgICAgICAgdG90YWxJdGVtczogdG90YWxJdGVtcywKICAgICAgICAgICAgICAgIGl0
+ZW1zUGVyUGFnZTogaXRlbXNQZXJQYWdlCiAgICAgICAgICAgIH0KICAgICAgICB9KTsKICAgIH0g
+Y2F0Y2ggKGVycm9yKSB7CiAgICAgICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KHsgaXRlbXM6IFtd
+LCBwYWdpbmF0aW9uOiB7IGN1cnJlbnRQYWdlOiAxLCB0b3RhbFBhZ2VzOiAxIH0gfSk7CiAgICB9
+Cn0KCmZ1bmN0aW9uIHBhcnNlU2VhcmNoUmVzcG9uc2UoYXBpUmVzcG9uc2VKc29uKSB7CiAgICBy
+ZXR1cm4gcGFyc2VMaXN0UmVzcG9uc2UoYXBpUmVzcG9uc2VKc29uKTsKfQoKZnVuY3Rpb24gcGFy
+c2VNb3ZpZURldGFpbChhcGlSZXNwb25zZUpzb24pIHsKICAgIHRyeSB7CiAgICAgICAgdmFyIHJl
+c3BvbnNlID0gSlNPTi5wYXJzZShhcGlSZXNwb25zZUpzb24pOwogICAgICAgIHZhciBsaXN0ID0g
+cmVzcG9uc2UubGlzdCB8fCBbXTsKICAgICAgICBpZiAobGlzdC5sZW5ndGggPT09IDApIHJldHVy
+biAibnVsbCI7CgogICAgICAgIHZhciBtb3ZpZSA9IGxpc3RbMF07CgogICAgICAgIC8vIFBhcnNl
+IGVwaXNvZGVzIHThu6sgY+G6pXUgdHLDumMgQVZEQkFQSQogICAgICAgIC8vIGVwaXNvZGVzOiB7
+IHNlcnZlcl9uYW1lOiAiVklQICMxIiwgc2VydmVyX2RhdGE6IHsgIkZ1bGwiOiB7IHNsdWcsIGxp
+bmtfZW1iZWQgfSB9IH0KICAgICAgICB2YXIgc2VydmVycyA9IFtdOwogICAgICAgIHZhciBlcHMg
+PSBtb3ZpZS5lcGlzb2RlczsKICAgICAgICBpZiAoZXBzKSB7CiAgICAgICAgICAgIHZhciBzZXJ2
+ZXJFcGlzb2RlcyA9IFtdOwogICAgICAgICAgICB2YXIgc2VydmVyRGF0YSA9IGVwcy5zZXJ2ZXJf
+ZGF0YSB8fCB7fTsKCiAgICAgICAgICAgIGZvciAodmFyIGVwTmFtZSBpbiBzZXJ2ZXJEYXRhKSB7
+CiAgICAgICAgICAgICAgICBpZiAoc2VydmVyRGF0YS5oYXNPd25Qcm9wZXJ0eShlcE5hbWUpKSB7
+CiAgICAgICAgICAgICAgICAgICAgdmFyIGVwSW5mbyA9IHNlcnZlckRhdGFbZXBOYW1lXTsKICAg
+ICAgICAgICAgICAgICAgICB2YXIgZW1iZWRVcmwgPSBlcEluZm8ubGlua19lbWJlZCB8fCAiIjsK
+ICAgICAgICAgICAgICAgICAgICBpZiAoZW1iZWRVcmwpIHsKICAgICAgICAgICAgICAgICAgICAg
+ICAgLy8gRXBpc29kZSBJRCA9IGVtYmVkIFVSTCAodXBsb2FkMTgub3JnKQogICAgICAgICAgICAg
+ICAgICAgICAgICAvLyBBcHAgc+G6vSBkw7luZyBJRCBuw6B5IGfhu41pIGdldFN0cmVhbUxpbmsg
+4oaSIGdldFVybERldGFpbCDihpIgZmV0Y2ggZW1iZWQg4oaSIHBhcnNlRGV0YWlsUmVzcG9uc2UK
+ICAgICAgICAgICAgICAgICAgICAgICAgc2VydmVyRXBpc29kZXMucHVzaCh7CiAgICAgICAgICAg
+ICAgICAgICAgICAgICAgICBpZDogZW1iZWRVcmwsCiAgICAgICAgICAgICAgICAgICAgICAgICAg
+ICBuYW1lOiBlcE5hbWUsCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBzbHVnOiBlcEluZm8u
+c2x1ZyB8fCBlcE5hbWUudG9Mb3dlckNhc2UoKQogICAgICAgICAgICAgICAgICAgICAgICB9KTsK
+ICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgIH0KCiAg
+ICAgICAgICAgIGlmIChzZXJ2ZXJFcGlzb2Rlcy5sZW5ndGggPiAwKSB7CiAgICAgICAgICAgICAg
+ICBzZXJ2ZXJzLnB1c2goewogICAgICAgICAgICAgICAgICAgIG5hbWU6IGVwcy5zZXJ2ZXJfbmFt
+ZSB8fCAiU2VydmVyICMxIiwKICAgICAgICAgICAgICAgICAgICBlcGlzb2Rlczogc2VydmVyRXBp
+c29kZXMKICAgICAgICAgICAgICAgIH0pOwogICAgICAgICAgICB9CiAgICAgICAgfQoKICAgICAg
+ICB2YXIgY2F0ZWdvcmllcyA9IEFycmF5LmlzQXJyYXkobW92aWUuY2F0ZWdvcnkpCiAgICAgICAg
+ICAgID8gbW92aWUuY2F0ZWdvcnkuam9pbigiLCAiKQogICAgICAgICAgICA6IChtb3ZpZS5jYXRl
+Z29yeSB8fCAiIik7CiAgICAgICAgdmFyIGNvdW50cmllcyA9IEFycmF5LmlzQXJyYXkobW92aWUu
+Y291bnRyeSkKICAgICAgICAgICAgPyBtb3ZpZS5jb3VudHJ5LmpvaW4oIiwgIikKICAgICAgICAg
+ICAgOiAobW92aWUuY291bnRyeSB8fCAiIik7CiAgICAgICAgdmFyIGRpcmVjdG9ycyA9IEFycmF5
+LmlzQXJyYXkobW92aWUuZGlyZWN0b3IpCiAgICAgICAgICAgID8gbW92aWUuZGlyZWN0b3IuZmls
+dGVyKGZ1bmN0aW9uIChkKSB7IHJldHVybiBkICE9PSAiVXBkYXRpbmciOyB9KS5qb2luKCIsICIp
+CiAgICAgICAgICAgIDogKG1vdmllLmRpcmVjdG9yIHx8ICIiKTsKICAgICAgICB2YXIgYWN0b3Jz
+ID0gQXJyYXkuaXNBcnJheShtb3ZpZS5hY3RvcikKICAgICAgICAgICAgPyBtb3ZpZS5hY3Rvci5m
+aWx0ZXIoZnVuY3Rpb24gKGEpIHsgcmV0dXJuIGEgIT09ICJVcGRhdGluZyI7IH0pLmpvaW4oIiwg
+IikKICAgICAgICAgICAgOiAobW92aWUuYWN0b3IgfHwgIiIpOwoKICAgICAgICByZXR1cm4gSlNP
+Ti5zdHJpbmdpZnkoewogICAgICAgICAgICBpZDogbW92aWUuc2x1ZyB8fCBtb3ZpZS5tb3ZpZV9j
+b2RlIHx8ICIiLAogICAgICAgICAgICB0aXRsZTogbW92aWUubmFtZSB8fCAiIiwKICAgICAgICAg
+ICAgb3JpZ2luTmFtZTogbW92aWUub3JpZ2luX25hbWUgfHwgIiIsCiAgICAgICAgICAgIHBvc3Rl
+clVybDogbW92aWUucG9zdGVyX3VybCB8fCAiIiwKICAgICAgICAgICAgYmFja2Ryb3BVcmw6IG1v
+dmllLnRodW1iX3VybCB8fCAiIiwKICAgICAgICAgICAgZGVzY3JpcHRpb246IChtb3ZpZS5kZXNj
+cmlwdGlvbiB8fCAiIikucmVwbGFjZSgvPFtePl0qPi9nLCAiIiksCiAgICAgICAgICAgIHllYXI6
+IHBhcnNlSW50KG1vdmllLnllYXIpIHx8IDAsCiAgICAgICAgICAgIHJhdGluZzogMCwKICAgICAg
+ICAgICAgcXVhbGl0eTogbW92aWUucXVhbGl0eSB8fCAiSEQiLAogICAgICAgICAgICBkdXJhdGlv
+bjogbW92aWUudGltZSB8fCAiIiwKICAgICAgICAgICAgc2VydmVyczogc2VydmVycywKICAgICAg
+ICAgICAgZXBpc29kZV9jdXJyZW50OiBtb3ZpZS5zdGF0dXMgfHwgIiIsCiAgICAgICAgICAgIGxh
+bmc6ICIiLAogICAgICAgICAgICBjYXRlZ29yeTogY2F0ZWdvcmllcywKICAgICAgICAgICAgY291
+bnRyeTogY291bnRyaWVzLAogICAgICAgICAgICBkaXJlY3RvcjogZGlyZWN0b3JzLAogICAgICAg
+ICAgICBjYXN0czogYWN0b3JzLAogICAgICAgICAgICBzdGF0dXM6IG1vdmllLnN0YXR1cyB8fCAi
+IgogICAgICAgIH0pOwogICAgfSBjYXRjaCAoZXJyb3IpIHsgcmV0dXJuICJudWxsIjsgfQp9Cgov
+LyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PQovLyBTVFJFQU0gTElOSyAtIHBhcnNlRGV0YWlsUmVzcG9u
+c2UKLy8gTmjhuq1uIEhUTUwgdOG7qyBlbWJlZCB1cGxvYWQxOC5vcmcg4oaSIHRy4bqjIGlzRW1i
+ZWQgKyB1cmwgdG9rZW5faGFzaAovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKZnVuY3Rpb24gcGFy
+c2VEZXRhaWxSZXNwb25zZShlbWJlZEh0bWwsIHBhZ2VVcmwpIHsKICAgIHRyeSB7CiAgICAgICAg
+Ly8gTuG6v3UgcmVzcG9uc2UgbMOgIG0zdTggY29udGVudCDihpIgdHLhuqMgcGFnZVVybCDEkeG7
+gyBBVlBsYXllciBwbGF5IHRy4buxYyB0aeG6v3AKICAgICAgICBpZiAoZW1iZWRIdG1sLmluZGV4
+T2YoIiNFWFRNM1UiKSAhPT0gLTEgfHwgZW1iZWRIdG1sLmluZGV4T2YoIiNFWFQtWC0iKSAhPT0g
+LTEpIHsKICAgICAgICAgICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KHsKICAgICAgICAgICAgICAg
+IHVybDogcGFnZVVybCB8fCAiIiwKICAgICAgICAgICAgICAgIGlzRW1iZWQ6IGZhbHNlLAogICAg
+ICAgICAgICAgICAgaGVhZGVyczogewogICAgICAgICAgICAgICAgICAgICJSZWZlcmVyIjogImh0
+dHBzOi8vdXBsb2FkMTgub3JnLyIsCiAgICAgICAgICAgICAgICAgICAgIlVzZXItQWdlbnQiOiAi
+TW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3
+LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzEzMS4wLjAuMCBTYWZhcmkvNTM3LjM2Igog
+ICAgICAgICAgICAgICAgfSwKICAgICAgICAgICAgICAgIHN1YnRpdGxlczogW10KICAgICAgICAg
+ICAgfSk7CiAgICAgICAgfQoKICAgICAgICAvLyBO4bq/dSBsw6AgSFRNTCBlbWJlZCBwYWdlIOKG
+kiB0cuG6oyBpc0VtYmVkOiB0cnVlIMSR4buDIGlPUyBkw7luZyBXZWJWaWV3CiAgICAgICAgLy8g
+V2ViVmlldyBz4bq9IHJlbmRlciBKV1BsYXllciBiw6puIHRyb25nLCB04buxIHjhu60gbMO9IG0z
+dTggKyBDbG91ZGZsYXJlIGNvb2tpZXMKICAgICAgICBpZiAoZW1iZWRIdG1sLmluZGV4T2YoIlBM
+QVlFUl9DT05GSUciKSAhPT0gLTEgfHwgZW1iZWRIdG1sLmluZGV4T2YoImp3cGxheWVyIikgIT09
+IC0xKSB7CiAgICAgICAgICAgIHJldHVybiBKU09OLnN0cmluZ2lmeSh7CiAgICAgICAgICAgICAg
+ICB1cmw6IHBhZ2VVcmwgfHwgIiIsCiAgICAgICAgICAgICAgICBpc0VtYmVkOiB0cnVlLAogICAg
+ICAgICAgICAgICAgaGVhZGVyczogewogICAgICAgICAgICAgICAgICAgICJSZWZlcmVyIjogImh0
+dHBzOi8vdXBsb2FkMTgub3JnLyIsCiAgICAgICAgICAgICAgICAgICAgIlVzZXItQWdlbnQiOiAi
+TW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3
+LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzEzMS4wLjAuMCBTYWZhcmkvNTM3LjM2Igog
+ICAgICAgICAgICAgICAgfSwKICAgICAgICAgICAgICAgIHN1YnRpdGxlczogW10KICAgICAgICAg
+ICAgfSk7CiAgICAgICAgfQoKICAgICAgICAvLyBGYWxsYmFjazogdMOsbSBsaW5rIG0zdTggdHLh
+u7FjIHRp4bq/cAogICAgICAgIHZhciBmYWxsYmFja01hdGNoID0gZW1iZWRIdG1sLm1hdGNoKC9b
+IiddKGh0dHBzPzpcL1wvW14iJ10rXC5tM3U4W14iJ10qPylbIiddLyk7CiAgICAgICAgaWYgKGZh
+bGxiYWNrTWF0Y2gpIHsKICAgICAgICAgICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KHsKICAgICAg
+ICAgICAgICAgIHVybDogZmFsbGJhY2tNYXRjaFsxXSwKICAgICAgICAgICAgICAgIGlzRW1iZWQ6
+IGZhbHNlLAogICAgICAgICAgICAgICAgaGVhZGVyczogeyAiUmVmZXJlciI6ICJodHRwczovL3Vw
+bG9hZDE4Lm9yZy8iIH0sCiAgICAgICAgICAgICAgICBzdWJ0aXRsZXM6IFtdCiAgICAgICAgICAg
+IH0pOwogICAgICAgIH0KCiAgICAgICAgLy8gRmFsbGJhY2sgY3Xhu5FpOiB0cuG6oyBlbWJlZCBV
+UkwgY2hvIFdlYlZpZXcgbG9hZCB0cuG7sWMgdGnhur9wCiAgICAgICAgcmV0dXJuIEpTT04uc3Ry
+aW5naWZ5KHsKICAgICAgICAgICAgdXJsOiBwYWdlVXJsIHx8ICIiLAogICAgICAgICAgICBpc0Vt
+YmVkOiB0cnVlLAogICAgICAgICAgICBoZWFkZXJzOiB7CiAgICAgICAgICAgICAgICAiUmVmZXJl
+ciI6ICJodHRwczovL3VwbG9hZDE4Lm9yZy8iLAogICAgICAgICAgICAgICAgIlVzZXItQWdlbnQi
+OiAiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQv
+NTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzEzMS4wLjAuMCBTYWZhcmkvNTM3LjM2
+IgogICAgICAgICAgICB9LAogICAgICAgICAgICBzdWJ0aXRsZXM6IFtdCiAgICAgICAgfSk7CiAg
+ICB9IGNhdGNoIChlcnJvcikgeyByZXR1cm4gInt9IjsgfQp9CgovLyA9PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PQovLyBwYXJzZUVtYmVkUmVzcG9uc2UgLSBOaOG6rW4gcmVzcG9uc2UgdOG7qyB0b2tlbl9o
+YXNoIGVuZHBvaW50Ci8vIFJlc3BvbnNlID0gbTN1OCBwbGF5bGlzdCB0ZXh0IOKGkiBFeG9QbGF5
+ZXIgc+G6vSBwbGF5IHRy4buxYyB0aeG6v3AgdOG7qyBVUkwKLy8gPT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT0KCmZ1bmN0aW9uIHBhcnNlRW1iZWRSZXNwb25zZShtM3U4Q29udGVudCwgdG9rZW5VcmwpIHsK
+ICAgIHRyeSB7CiAgICAgICAgLy8gdG9rZW5VcmwgPSAiaHR0cHM6Ly91cGxvYWQxOC5vcmcvcGxh
+eS90b2tlbl9oYXNoP2hhc2g9eHh4IgogICAgICAgIC8vIG0zdThDb250ZW50ID0gbuG7mWkgZHVu
+ZyBtM3U4IHBsYXlsaXN0CiAgICAgICAgLy8gRXhvUGxheWVyIGPhuqduIFVSTCwga2jDtG5nIHBo
+4bqjaSBjb250ZW50IOKGkiB0cuG6oyB0b2tlblVybCBsw6AgVVJMIHBsYXlhYmxlCiAgICAgICAg
+aWYgKG0zdThDb250ZW50LmluZGV4T2YoIiNFWFRNM1UiKSAhPT0gLTEgfHwgbTN1OENvbnRlbnQu
+aW5kZXhPZigiI0VYVC1YLSIpICE9PSAtMSkgewogICAgICAgICAgICByZXR1cm4gSlNPTi5zdHJp
+bmdpZnkoewogICAgICAgICAgICAgICAgdXJsOiB0b2tlblVybCwKICAgICAgICAgICAgICAgIGhl
+YWRlcnM6IHsKICAgICAgICAgICAgICAgICAgICAiUmVmZXJlciI6ICJodHRwczovL3VwbG9hZDE4
+Lm9yZy8iLAogICAgICAgICAgICAgICAgICAgICJCbG9jay1BZHMiOiAidHJ1ZSIsCiAgICAgICAg
+ICAgICAgICAgICAgIlVzZXItQWdlbnQiOiAiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsg
+V2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21l
+LzEzMS4wLjAuMCBTYWZhcmkvNTM3LjM2IgogICAgICAgICAgICAgICAgfSwKICAgICAgICAgICAg
+ICAgIHN1YnRpdGxlczogW10KICAgICAgICAgICAgfSk7CiAgICAgICAgfQoKICAgICAgICByZXR1
+cm4gInt9IjsKICAgIH0gY2F0Y2ggKGVycm9yKSB7IHJldHVybiAie30iOyB9Cn0KCi8vID09PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09Ci8vIENBVEVHT1JJRVMgLyBDT1VOVFJJRVMgLyBZRUFSUwovLyA9PT09
+PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09
+PT09PT09PT09PT09PT09PQoKZnVuY3Rpb24gcGFyc2VDYXRlZ29yaWVzUmVzcG9uc2UoYXBpUmVz
+cG9uc2VKc29uKSB7CiAgICByZXR1cm4gSlNPTi5zdHJpbmdpZnkoWwogICAgICAgIHsgbmFtZTog
+IkNlbnNvcmVkIiwgc2x1ZzogIjEiIH0sCiAgICAgICAgeyBuYW1lOiAiVW5jZW5zb3JlZCIsIHNs
+dWc6ICIyIiB9LAogICAgICAgIHsgbmFtZTogIlVuY2Vuc29yZWQgTGVha2VkIiwgc2x1ZzogIjMi
+IH0sCiAgICAgICAgeyBuYW1lOiAiQW1hdGV1ciIsIHNsdWc6ICI0IiB9LAogICAgICAgIHsgbmFt
+ZTogIkNoaW5lc2UgQVYiLCBzbHVnOiAiNSIgfSwKICAgICAgICB7IG5hbWU6ICJXZXN0ZXJuIiwg
+c2x1ZzogIjYiIH0KICAgIF0pOwp9CgpmdW5jdGlvbiBwYXJzZUNvdW50cmllc1Jlc3BvbnNlKGFw
+aVJlc3BvbnNlSnNvbikgewogICAgcmV0dXJuIEpTT04uc3RyaW5naWZ5KFsKICAgICAgICB7IG5h
+bWU6ICJKYXBhbiIsIHZhbHVlOiAiamFwYW4iIH0sCiAgICAgICAgeyBuYW1lOiAiQ2hpbmEiLCB2
+YWx1ZTogImNoaW5hIiB9LAogICAgICAgIHsgbmFtZTogIldlc3Rlcm4iLCB2YWx1ZTogIndlc3Rl
+cm4iIH0KICAgIF0pOwp9CgpmdW5jdGlvbiBwYXJzZVllYXJzUmVzcG9uc2UoYXBpUmVzcG9uc2VK
+c29uKSB7CiAgICB2YXIgeWVhcnMgPSBbXTsKICAgIGZvciAodmFyIGkgPSAyMDI2OyBpID49IDIw
+MTA7IGktLSkgewogICAgICAgIHllYXJzLnB1c2goeyBuYW1lOiBpLnRvU3RyaW5nKCksIHZhbHVl
+OiBpLnRvU3RyaW5nKCkgfSk7CiAgICB9CiAgICByZXR1cm4gSlNPTi5zdHJpbmdpZnkoeWVhcnMp
+Owp9Cg==
