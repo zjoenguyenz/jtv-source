@@ -99,6 +99,33 @@
       "iconUrl": "https://misskon.com/favicon.ico",
       "adult": true,
       "baseUrl": "https://misskon.com"
+    },
+    {
+      "id": "kkphim",
+      "name": "KKPhim",
+      "version": "1.0.2",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/kkphim_plugin.js",
+      "iconUrl": "",
+      "adult": false,
+      "baseUrl": "https://phimapi.com"
+    },
+    {
+      "id": "vsmov",
+      "name": "VSMov",
+      "version": "1.0.0",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/vsmov_plugin.js",
+      "iconUrl": "",
+      "adult": false,
+      "baseUrl": "https://vsmov.com"
+    },
+    {
+      "id": "film4k",
+      "name": "Film4K",
+      "version": "1.0.0",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/film4k_plugin.js",
+      "iconUrl": "",
+      "adult": false,
+      "baseUrl": "https://film4k.net"
     }
   ]
 }
