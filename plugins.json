@@ -119,6 +119,15 @@
    "iconUrl": "https://jav.guru/favicon.ico",
    "adult": true,
    "baseUrl": "https://jav.guru"
+  },
+  {
+   "id": "javsnap",
+   "name": "JavSnap",
+   "version": "1.0.0",
+   "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod17.js",
+   "iconUrl": "https://javsnap.com/assets/client/icon/favicon.ico",
+   "adult": true,
+   "baseUrl": "https://javsnap.com"
   }
  ]
 }
