@@ -1,68 +1,115 @@
-ewogICJ2ZXJzaW9uIjogMSwKICAicGx1Z2lucyI6IFsKICAgIHsKICAgICAgImlkIjogIm1pc3Nh
-diIsCiAgICAgICJuYW1lIjogIk1pc3NBViIsCiAgICAgICJ2ZXJzaW9uIjogIjEuMS43IiwKICAg
-ICAgInNjcmlwdFVybCI6ICJodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vempvZW5n
-dXllbnovanR2LXNvdXJjZS9tYWluL3BsdWdpbnMvbW9kMDEuanMiLAogICAgICAiaWNvblVybCI6
-ICJodHRwczovL21pc3Nhdi5tZWRpYS9mYXZpY29uLmljbyIsCiAgICAgICJhZHVsdCI6IHRydWUs
-CiAgICAgICJiYXNlVXJsIjogImh0dHBzOi8vbWlzc2F2Lm1lZGlhIgogICAgfSwKICAgIHsKICAg
-ICAgImlkIjogIjEyM2F2IiwKICAgICAgIm5hbWUiOiAiMTIzQVYiLAogICAgICAidmVyc2lvbiI6
-ICIxLjAuOCIsCiAgICAgICJzY3JpcHRVcmwiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRl
-bnQuY29tL3pqb2VuZ3V5ZW56L2p0di1zb3VyY2UvbWFpbi9wbHVnaW5zL21vZDAyLmpzIiwKICAg
-ICAgImljb25VcmwiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL3pqb2VuZ3V5
-ZW56L2p0di1zb3VyY2UvbWFpbi9pY29ucy9tb2QwMi5pY28iLAogICAgICAiYWR1bHQiOiB0cnVl
-LAogICAgICAiYmFzZVVybCI6ICJodHRwczovLzEyM2F2LmNvbSIKICAgIH0sCiAgICB7CiAgICAg
-ICJpZCI6ICJhdmRiYXBpIiwKICAgICAgIm5hbWUiOiAiQVZEQiBKQVYiLAogICAgICAidmVyc2lv
-biI6ICIxLjAuNiIsCiAgICAgICJzY3JpcHRVcmwiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNv
-bnRlbnQuY29tL3pqb2VuZ3V5ZW56L2p0di1zb3VyY2UvbWFpbi9wbHVnaW5zL21vZDAzLmpzIiwK
-ICAgICAgImljb25VcmwiOiAiaHR0cHM6Ly9hdmRiYXBpLmNvbS9mYXZpY29uLmljbyIsCiAgICAg
-ICJhZHVsdCI6IHRydWUsCiAgICAgICJiYXNlVXJsIjogImh0dHBzOi8vYXZkYmFwaS5jb20vYXBp
-LnBocC9wcm92aWRlL3ZvZCIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJzZXh0b3AxIiwKICAg
-ICAgIm5hbWUiOiAiU2V4dG9wMSIsCiAgICAgICJ2ZXJzaW9uIjogIjIuMC40IiwKICAgICAgInNj
-cmlwdFVybCI6ICJodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vempvZW5ndXllbnov
-anR2LXNvdXJjZS9tYWluL3BsdWdpbnMvbW9kMDQuanMiLAogICAgICAiaWNvblVybCI6ICJodHRw
-czovL3NleHRvcDEuZmFybS9mYXZpY29uLmljbyIsCiAgICAgICJhZHVsdCI6IHRydWUsCiAgICAg
-ICJiYXNlVXJsIjogImh0dHBzOi8vc2V4dG9wMS5mYXJtIgogICAgfSwKICAgIHsKICAgICAgImlk
-IjogInRvcHh4IiwKICAgICAgIm5hbWUiOiAiVG9wWFgiLAogICAgICAidmVyc2lvbiI6ICIxLjAu
-MyIsCiAgICAgICJzY3JpcHRVcmwiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29t
-L3pqb2VuZ3V5ZW56L2p0di1zb3VyY2UvbWFpbi9wbHVnaW5zL21vZDA1LmpzIiwKICAgICAgImlj
-b25VcmwiOiAiaHR0cHM6Ly90b3B4eC52aXAvYXNzZXRzL2ltYWdlcy9oZWFkZXIvbG9nby5wbmci
-LAogICAgICAiYWR1bHQiOiB0cnVlLAogICAgICAiYmFzZVVybCI6ICJodHRwczovL3RvcHh4LnZp
-cCIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJqYXZoZCIsCiAgICAgICJuYW1lIjogIkphdkhE
-IiwKICAgICAgInZlcnNpb24iOiAiMS4wLjciLAogICAgICAic2NyaXB0VXJsIjogImh0dHBzOi8v
-cmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS96am9lbmd1eWVuei9qdHYtc291cmNlL21haW4vcGx1
-Z2lucy9tb2QwNi5qcyIsCiAgICAgICJpY29uVXJsIjogImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJj
-b250ZW50LmNvbS96am9lbmd1eWVuei9qdHYtc291cmNlL21haW4vaWNvbnMvbW9kMDYuaWNvIiwK
-ICAgICAgImFkdWx0IjogdHJ1ZSwKICAgICAgImJhc2VVcmwiOiAiaHR0cHM6Ly9qYXZoZHoudG9k
-YXkiCiAgICB9LAogICAgewogICAgICAiaWQiOiAidmx4eCIsCiAgICAgICJuYW1lIjogIlZMWFgi
-LAogICAgICAidmVyc2lvbiI6ICIxLjAuNyIsCiAgICAgICJzY3JpcHRVcmwiOiAiaHR0cHM6Ly9y
-YXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL3pqb2VuZ3V5ZW56L2p0di1zb3VyY2UvbWFpbi9wbHVn
-aW5zL21vZDA3LmpzIiwKICAgICAgImljb25VcmwiOiAiaHR0cHM6Ly92bHh4Lm5ldC9mYXZpY29u
-LmljbyIsCiAgICAgICJhZHVsdCI6IHRydWUsCiAgICAgICJiYXNlVXJsIjogImh0dHBzOi8vdmx4
-eC5uZXQiCiAgICB9LAogICAgewogICAgICAiaWQiOiAibmphdiIsCiAgICAgICJuYW1lIjogIk5K
-QVYiLAogICAgICAidmVyc2lvbiI6ICIxLjAuOCIsCiAgICAgICJzY3JpcHRVcmwiOiAiaHR0cHM6
-Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL3pqb2VuZ3V5ZW56L2p0di1zb3VyY2UvbWFpbi9w
-bHVnaW5zL21vZDA4LmpzIiwKICAgICAgImljb25VcmwiOiAiaHR0cHM6Ly93d3cubmphdi5jb20v
-ZmF2aWNvbi5pY28iLAogICAgICAiYWR1bHQiOiB0cnVlLAogICAgICAiYmFzZVVybCI6ICJodHRw
-czovL3d3dy5uamF2LmNvbSIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJzYXloZW50YWkiLAog
-ICAgICAibmFtZSI6ICJTYXlIZW50YWkiLAogICAgICAidmVyc2lvbiI6ICIzLjIuMCIsCiAgICAg
-ICJzY3JpcHRVcmwiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL3pqb2VuZ3V5
-ZW56L2p0di1zb3VyY2UvbWFpbi9wbHVnaW5zL21vZDA5LmpzIiwKICAgICAgImljb25VcmwiOiAi
-aHR0cHM6Ly9zYXloZW50YWkuY3gvZmF2aWNvbi5pY28iLAogICAgICAiYWR1bHQiOiB0cnVlLAog
-ICAgICAiYmFzZVVybCI6ICJodHRwczovL3NheWhlbnRhaS5jeCIKICAgIH0sCiAgICB7CiAgICAg
-ICJpZCI6ICJtaXNza29uIiwKICAgICAgIm5hbWUiOiAiTWlzc0tvbiIsCiAgICAgICJ2ZXJzaW9u
-IjogIjEuMC4xIiwKICAgICAgInNjcmlwdFVybCI6ICJodHRwczovL3Jhdy5naXRodWJ1c2VyY29u
-dGVudC5jb20vempvZW5ndXllbnovanR2LXNvdXJjZS9tYWluL3BsdWdpbnMvbW9kMTAuanMiLAog
-ICAgICAiaWNvblVybCI6ICJodHRwczovL21pc3Nrb24uY29tL2Zhdmljb24uaWNvIiwKICAgICAg
-ImFkdWx0IjogdHJ1ZSwKICAgICAgImJhc2VVcmwiOiAiaHR0cHM6Ly9taXNza29uLmNvbSIKICAg
-IH0sCiAgICB7CiAgICAgICJpZCI6ICJ0b3JyZW50aHViIiwKICAgICAgIm5hbWUiOiAiVG9ycmVu
-dCAxOCsiLAogICAgICAidmVyc2lvbiI6ICIxLjAuNyIsCiAgICAgICJzY3JpcHRVcmwiOiAiaHR0
-cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL3pqb2VuZ3V5ZW56L2p0di1zb3VyY2UvbWFp
-bi9wbHVnaW5zL21vZDE0LmpzIiwKICAgICAgImljb25VcmwiOiAiaHR0cHM6Ly9yYXcuZ2l0aHVi
-dXNlcmNvbnRlbnQuY29tL3pqb2VuZ3V5ZW56L2p0di1zb3VyY2UvbWFpbi9pY29ucy9tb2QxNC5w
-bmciLAogICAgICAiYWR1bHQiOiB0cnVlLAogICAgICAiYmFzZVVybCI6ICJodHRwczovL2FkZG9u
-LmRlYnJpZC5pbiIKICAgIH0sCiAgICB7CiAgICAgICJpZCI6ICJoZW50YWlodWIiLAogICAgICAi
-bmFtZSI6ICJIZW50YWkgSHViIiwKICAgICAgInZlcnNpb24iOiAiMS4wLjciLAogICAgICAibWF4
-Q2hhaW5QYXJzZXMiOiA1LAogICAgICAic2NyaXB0VXJsIjogImh0dHBzOi8vcmF3LmdpdGh1YnVz
-ZXJjb250ZW50LmNvbS96am9lbmd1eWVuei9qdHYtc291cmNlL21haW4vcGx1Z2lucy9tb2QxNS5q
-cyIsCiAgICAgICJpY29uVXJsIjogImh0dHBzOi8vaHN0cmVhbS5tb2UvaW1hZ2VzL2Nyb3BwZWQt
-SFMtMS0yNzB4MjcwLndlYnAiLAogICAgICAiYWR1bHQiOiB0cnVlLAogICAgICAiYmFzZVVybCI6
-ICJodHRwczovL2hzdHJlYW0ubW9lIgogICAgfQogIF0KfQo=
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "missav",
+      "name": "MissAV",
+      "version": "1.1.7",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod01.js",
+      "iconUrl": "https://missav.media/favicon.ico",
+      "adult": true,
+      "baseUrl": "https://missav.media"
+    },
+    {
+      "id": "123av",
+      "name": "123AV",
+      "version": "1.0.8",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod02.js",
+      "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/mod02.ico",
+      "adult": true,
+      "baseUrl": "https://123av.com",
+   "relayBase": "http://192.168.68.59:8797/r/727da8975ab9e3c1"
+    },
+    {
+      "id": "avdbapi",
+      "name": "AVDB JAV",
+      "version": "1.0.6",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod03.js",
+      "iconUrl": "https://avdbapi.com/favicon.ico",
+      "adult": true,
+      "baseUrl": "https://avdbapi.com/api.php/provide/vod"
+    },
+    {
+      "id": "sextop1",
+      "name": "Sextop1",
+      "version": "2.0.4",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod04.js",
+      "iconUrl": "https://sextop1.farm/favicon.ico",
+      "adult": true,
+      "baseUrl": "https://sextop1.farm"
+    },
+    {
+      "id": "topxx",
+      "name": "TopXX",
+      "version": "1.0.3",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod05.js",
+      "iconUrl": "https://topxx.vip/assets/images/header/logo.png",
+      "adult": true,
+      "baseUrl": "https://topxx.vip"
+    },
+    {
+      "id": "javhd",
+      "name": "JavHD",
+      "version": "1.0.7",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod06.js",
+      "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/mod06.ico",
+      "adult": true,
+      "baseUrl": "https://javhdz.today"
+    },
+    {
+      "id": "vlxx",
+      "name": "VLXX",
+      "version": "1.0.7",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod07.js",
+      "iconUrl": "https://vlxx.net/favicon.ico",
+      "adult": true,
+      "baseUrl": "https://vlxx.net"
+    },
+    {
+      "id": "njav",
+      "name": "NJAV",
+      "version": "1.0.8",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod08.js",
+      "iconUrl": "https://www.njav.com/favicon.ico",
+      "adult": true,
+      "baseUrl": "https://www.njav.com"
+    },
+    {
+      "id": "sayhentai",
+      "name": "SayHentai",
+      "version": "3.2.0",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod09.js",
+      "iconUrl": "https://sayhentai.cx/favicon.ico",
+      "adult": true,
+      "baseUrl": "https://sayhentai.cx"
+    },
+    {
+      "id": "misskon",
+      "name": "MissKon",
+      "version": "1.0.1",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod10.js",
+      "iconUrl": "https://misskon.com/favicon.ico",
+      "adult": true,
+      "baseUrl": "https://misskon.com"
+    },
+    {
+      "id": "torrenthub",
+      "name": "Torrent 18+",
+      "version": "1.0.7",
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod14.js",
+      "iconUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/icons/mod14.png",
+      "adult": true,
+      "baseUrl": "https://addon.debrid.in"
+    },
+    {
+      "id": "hentaihub",
+      "name": "Hentai Hub",
+      "version": "1.0.7",
+      "maxChainParses": 5,
+      "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod15.js",
+      "iconUrl": "https://hstream.moe/images/cropped-HS-1-270x270.webp",
+      "adult": true,
+      "baseUrl": "https://hstream.moe"
+    }
+  ]
+}
