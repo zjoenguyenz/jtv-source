@@ -4,7 +4,7 @@
   {
    "id": "missav",
    "name": "MissAV",
-   "version": "1.1.7",
+   "version": "1.1.8",
    "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod01.js",
    "iconUrl": "https://missav.media/favicon.ico",
    "adult": true,
