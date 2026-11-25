@@ -128,6 +128,15 @@
    "iconUrl": "https://javsnap.com/assets/client/icon/favicon.ico",
    "adult": true,
    "baseUrl": "https://javsnap.com"
+  },
+  {
+   "id": "javmenu",
+   "name": "JavMenu",
+   "version": "1.0.0",
+   "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod18.js",
+   "iconUrl": "https://javmenu.com/favicon.ico",
+   "adult": true,
+   "baseUrl": "https://javmenu.com"
   }
  ]
 }
