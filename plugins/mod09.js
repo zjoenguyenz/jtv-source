@@ -50,7 +50,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "sayhentai",
         "name": "SayHentai",
-        "version": "3.2.0",
+        "version": "3.2.1",
         "baseUrl": "https://sayhentai.cx",
         "iconUrl": "https://sayhentai.cx/favicon.ico",
         "isEnabled": true,
@@ -176,9 +176,31 @@ function shIsMirrorUrl(url) {
     return typeof url === "string" && url.indexOf(MIRROR + "/") === 0;
 }
 
+// Requested-page stash for list/search pagination (L-T39/FL-489
+// fix, following the hentaihub precedent): getUrlList/getUrlSearch
+// receive the requested page (filters.page); parseListResponse
+// does not. The apps adopt the reported pagination.currentPage as
+// their own page counter (CategoryView / TVBrowseView:
+// page = result.pagination.currentPage after every fetch), so it
+// must be the page that was actually requested -- the in-markup
+// scrape in parseListResponse misreads the current pagination
+// markup (measured 2026-11-25: pages 1/2/3 report 1/1/1), which
+// makes the apps re-fetch the same pages forever and stalls
+// lists at ~40-50 items. The engine serializes each JS call
+// per plugin, but the getUrl* -> fetch -> parse cycle is not
+// atomic (the fetch runs between engine calls); the pairing is
+// reliable because every list/search flow in the apps is
+// single-flight per surface (the views' isLoadingMore guards;
+// home requests page 1 only; the actor merge paginates per
+// plugin in lockstep), and this same stash pattern is
+// device-proven in hentaihub; 0 = no stash (the scrape remains
+// the fallback).
+var _shRequestedPage = 0;
+
 function getUrlList(slug, filtersJson) {
     var filters = JSON.parse(filtersJson || "{}");
     var page = filters.page || 1;
+    _shRequestedPage = parseInt(page) || 1;
 
     if (filters.category) {
         return BASE + "/genre/" + filters.category + "?page=" + page;
@@ -195,6 +217,7 @@ function getUrlList(slug, filtersJson) {
 function getUrlSearch(keyword, filtersJson) {
     var filters = JSON.parse(filtersJson || "{}");
     var page = filters.page || 1;
+    _shRequestedPage = parseInt(page) || 1;
     var url = BASE + "/search?s=" + encodeURIComponent(keyword);
     if (page > 1) url += "&page=" + page;
     return url;
@@ -295,6 +318,14 @@ function parseListResponse(html) {
     while ((pMatch = pageRegex.exec(html)) !== null) {
         var p = parseInt(pMatch[1]);
         if (p > totalPages) totalPages = p;
+    }
+
+    // L-T39/FL-489: report the requested page from the stash when
+    // one exists (the scrape above stays as the fallback), and
+    // never report totalPages below the reported currentPage.
+    if (_shRequestedPage > 0) {
+        currentPage = _shRequestedPage;
+        if (totalPages < currentPage) totalPages = currentPage;
     }
 
     return JSON.stringify({
