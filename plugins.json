@@ -137,6 +137,16 @@
    "iconUrl": "https://javmenu.com/favicon.ico",
    "adult": true,
    "baseUrl": "https://javmenu.com"
+  },
+  {
+   "id": "javmost",
+   "name": "JavMost",
+   "version": "1.0.0",
+   "maxChainParses": 6,
+   "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod19.js",
+   "iconUrl": "https://www.javmost.ws/favicon.ico",
+   "adult": true,
+   "baseUrl": "https://www.javmost.ws"
   }
  ]
 }
