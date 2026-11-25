@@ -132,7 +132,7 @@
   {
    "id": "javmenu",
    "name": "JavMenu",
-   "version": "1.0.5",
+   "version": "1.0.6",
    "scriptUrl": "https://raw.githubusercontent.com/zjoenguyenz/jtv-source/main/plugins/mod18.js",
    "iconUrl": "https://javmenu.com/favicon.ico",
    "adult": true,
